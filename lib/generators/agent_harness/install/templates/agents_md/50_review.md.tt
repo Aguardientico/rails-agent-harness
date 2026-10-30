@@ -1,6 +1,8 @@
 ## Rails code review
 
-When asked to review code (or before finishing a non-trivial change), follow this checklist. Review only: report findings and don't edit files unless asked.
+When asked to review code (or before finishing a non-trivial change), follow this checklist.
+
+<%= review_partial("mode") %>
 
 ### Scope
 

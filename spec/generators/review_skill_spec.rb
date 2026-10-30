@@ -59,7 +59,10 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "rails-review skill" 
   it "has the scope, checklist, verification and output sections, under 200 lines" do
     run_generator
 
-    expect(skill).to include("## Scope", "## Checklist", "## Verify", "## Output format", "Review only")
+    expect(skill).to include("## Scope", "## Checklist", "## Verify", "## Output format")
+    expect(skill).to include("When reviewing on request, report findings only and don't edit files unless asked.",
+      "When reviewing your own change before finishing it, fix the `blocker` and `should-fix` findings, then run `bin/agent-check` again.")
+    expect(skill).to include("If there is no local `main` branch, use `origin/main`")
     expect(skill).to include("git diff --merge-base main", "git ls-files --others --exclude-standard", "`config/routes.rb`")
     expect(skill).to include("`blocker`, `should-fix`, `nit`", "`path:line - problem - concrete fix`", "No issues found", "bin/agent-check")
     expect(skill.lines.size).to be < 200
@@ -68,7 +71,8 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "rails-review skill" 
   it "adds a Rails code review section to AGENTS.md after the agent-check section" do
     run_generator
 
-    expect(agents).to include("## Rails code review", "When asked to review code (or before finishing a non-trivial change), follow this checklist")
+    expect(agents).to include("## Rails code review", "When asked to review code (or before finishing a non-trivial change), follow this checklist",
+      "When reviewing your own change before finishing it, fix the `blocker` and `should-fix` findings")
     expect(agents.index("## Verify your work")).to be < agents.index("## Rails code review")
     expect(agents).not_to include("name: rails-review")
   end

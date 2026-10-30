@@ -83,7 +83,7 @@ module AgentHarness
 
         path = ".claude/skills/rails-review/SKILL.md"
         full_path = File.join(destination_root, path)
-        content = ERB.new(File.read(File.join(self.class.source_root, "claude/skills/rails-review/SKILL.md.tt"), encoding: "UTF-8"), trim_mode: "-").result(binding)
+        content = render_template("claude/skills/rails-review/SKILL.md.tt")
         if File.exist?(full_path) && File.read(full_path, encoding: "UTF-8") != content && !options[:force]
           return say_status(:exists, "#{path} (differs; kept, use --force to overwrite)", :blue)
         end
@@ -123,7 +123,7 @@ module AgentHarness
       # in that directory).
       def agents_md
         Dir[File.join(self.class.source_root, "agents_md", "*.md.tt")].sort.map do |partial|
-          ERB.new(File.read(partial, encoding: "UTF-8"), trim_mode: "-").result(binding).strip
+          render_template(partial).strip
         end.join("\n\n")
       end
 
@@ -226,7 +226,13 @@ module AgentHarness
       # A rendered templates/shared/_rails_review_<name>.md.tt partial, shared by the
       # rails-review skill and the AGENTS.md review section so they can't drift.
       def review_partial(name)
-        ERB.new(File.read(File.join(self.class.source_root, "shared", "_rails_review_#{name}.md.tt"), encoding: "UTF-8"), trim_mode: "-").result(binding).strip
+        render_template("shared/_rails_review_#{name}.md.tt").strip
+      end
+
+      # A template (relative to source_root, or absolute) rendered with ERB in this generator's
+      # binding. Read as UTF-8 whatever the locale.
+      def render_template(path)
+        ERB.new(File.read(File.expand_path(path, self.class.source_root), encoding: "UTF-8"), trim_mode: "-").result(binding)
       end
 
       def schema_file

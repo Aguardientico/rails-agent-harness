@@ -48,3 +48,28 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       - run: bundle exec rspec
+
+  demo:
+    name: Demo
+    runs-on: ubuntu-latest
+    env:
+      RAILS_VERSION: "8.1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - run: demo/run
+
+  build:
+    name: Build gem
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - run: gem build rails_agent_harness.gemspec
+      - run: tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz

@@ -1,0 +1,144 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Before/after demo of rails_agent_harness on a throwaway copy of spec/dummy.
+#
+#   demo/run           run the scenario and check every step's exit status
+#   demo/run --record  also write the transcript to demo/OUTPUT.md
+#
+# Exits non-zero, naming the step, when a step doesn't exit as expected.
+
+require "fileutils"
+require "json"
+require "open3"
+require "tmpdir"
+
+class Demo
+  REPO = File.expand_path("..", __dir__)
+  DUMMY = File.join(REPO, "spec", "dummy")
+  SCENARIO = File.join(__dir__, "scenario")
+  OUTPUT = File.join(__dir__, "OUTPUT.md")
+  GIT = %w[git -c user.email=demo@example.com -c user.name=Demo].freeze
+  # Files the install generator writes (shown in step 2).
+  GENERATOR_STATUS = /\A\s*(create|identical|exists|force|skip)\s/
+
+  def initialize(record:)
+    @record = record
+    @transcript = []
+  end
+
+  def call
+    Dir.mktmpdir("agent_harness_demo") do |dir|
+      @app = File.join(dir, "app")
+      setup_app
+
+      section "1. Before: a careless agent change, and nothing stops it"
+      apply("bad_change")
+      step "git status --short", expect: 0
+
+      section "2. Install rails_agent_harness"
+      step "bin/rails g agent_harness:install", expect: 0, filter: GENERATOR_STATUS
+      quiet(*GIT, "add", "AGENTS.md", "CLAUDE.md", "config/agent_harness.yml", "bin/agent-check", ".claude")
+      quiet(*GIT, "commit", "-q", "-m", "Install rails_agent_harness")
+
+      section "3. After: bin/agent-check reports the problems"
+      step "bin/agent-check", expect: 1
+      payload = JSON.generate("tool_name" => "Write", "tool_input" => {"file_path" => File.join(@app, "db/migrate/20991231000000_add_published_to_posts.rb")})
+      step "echo '#{payload}' | bin/agent-check hook pre-tool-use", argv: %w[bin/agent-check hook pre-tool-use], stdin: payload, expect: 2
+
+      section "4. Fixed: generated migration, safe query, clean code"
+      quiet(*GIT, "reset", "-q", "--hard")
+      quiet(*GIT, "clean", "-q", "-fd")
+      apply("good_change")
+      step "bin/rails g migration AddPublishedToPosts published:boolean", expect: 0
+      step "bin/rails db:migrate", expect: 0
+      step "bin/agent-check", expect: 0
+    end
+
+    write_output if @record
+    puts "\ndemo: all steps exited as expected#{" (transcript written to demo/OUTPUT.md)" if @record}"
+    0
+  rescue Failure => e
+    warn "\ndemo: FAILED: #{e.message}"
+    1
+  end
+
+  private
+
+  class Failure < StandardError; end
+
+  # A copy of spec/dummy (like DummyAppHelper) plus the demo app's RuboCop/Brakeman setup,
+  # committed on `main`.
+  def setup_app
+    Dir.glob("**/*", File::FNM_DOTMATCH, base: DUMMY).sort.each do |relative|
+      next if File.basename(relative) == "." || relative.match?(%r{\A(log|tmp|storage)(/|\z)|\.sqlite3})
+
+      source = File.join(DUMMY, relative)
+      target = File.join(@app, relative)
+      File.directory?(source) ? FileUtils.mkdir_p(target) : FileUtils.mkdir_p(File.dirname(target)) && FileUtils.cp(source, target, preserve: true)
+    end
+    apply("base")
+    # The app runs on the gem's bundle (BUNDLE_GEMFILE); a lockfile lets Brakeman and the
+    # install generator see its Rails version and gems, as in a real app.
+    lockfile = File.join(REPO, "Gemfile.lock")
+    raise Failure, "run `bundle install` first (#{lockfile} is missing)" unless File.exist?(lockfile)
+
+    FileUtils.cp(lockfile, File.join(@app, "Gemfile.lock"))
+    quiet("git", "init", "-q", "-b", "main")
+    quiet(*GIT, "add", "-A")
+    quiet(*GIT, "commit", "-q", "-m", "Demo app")
+  end
+
+  def apply(name)
+    FileUtils.cp_r("#{File.join(SCENARIO, name)}/.", @app, preserve: true)
+  end
+
+  def env
+    {"BUNDLE_GEMFILE" => File.join(REPO, "Gemfile"), "RAILS_ENV" => "development", "NO_COLOR" => "1"}
+  end
+
+  # Runs `command` (shown as typed) in the app, prints and records it, and checks its exit
+  # status. `filter` keeps only matching output lines.
+  def step(command, expect:, argv: nil, stdin: nil, filter: nil)
+    output, status = Open3.capture2e(env, *(argv || ["bash", "-c", command]), chdir: @app, stdin_data: stdin.to_s)
+    output = output.lines.grep(filter).join if filter
+    shown = "$ #{command}\n#{output}"
+    shown += "(exit #{status.exitstatus})\n" unless status.exitstatus.zero?
+    puts shown
+    @transcript << "```console\n#{normalize(shown).rstrip}\n```\n"
+    return if status.exitstatus == expect
+
+    raise Failure, "`#{command}` exited #{status.exitstatus}, expected #{expect}\n#{output}"
+  end
+
+  def quiet(*argv)
+    output, status = Open3.capture2e(env, *argv, chdir: @app)
+    raise Failure, "`#{argv.join(" ")}` failed:\n#{output}" unless status.success?
+  end
+
+  def section(title)
+    puts "\n== #{title}\n\n"
+    @transcript << "## #{title}\n"
+  end
+
+  # Strips what changes between runs: the tmp app path, durations and migration timestamps.
+  def normalize(text)
+    text
+      .gsub(File.realpath(@app), "<app>").gsub(@app, "<app>")
+      .gsub(/\d{14}/, "YYYYMMDDHHMMSS")
+      .gsub(/\d{4}_\d{2}_\d{2}_\d{6}/, "YYYY_MM_DD_HHMMSS")
+      .gsub(/\b\d+(\.\d+)?s\b/, "Xs")
+  end
+
+  def write_output
+    File.write(OUTPUT, <<~MARKDOWN + @transcript.join("\n"))
+      # rails_agent_harness demo transcript
+
+      Recorded with `demo/run --record` on a copy of `spec/dummy`. Temporary paths, durations
+      and migration timestamps are normalized.
+
+    MARKDOWN
+  end
+end
+
+exit Demo.new(record: ARGV.include?("--record")).call

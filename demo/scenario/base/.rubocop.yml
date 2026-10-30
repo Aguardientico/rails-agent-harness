@@ -1,0 +1,17 @@
+# The demo app's RuboCop setup: plain RuboCop with a few Rails-app conventions.
+AllCops:
+  NewCops: disable
+  SuggestExtensions: false
+  Exclude:
+    - "bin/*"
+    - "db/schema.rb"
+
+Style/Documentation:
+  Enabled: false
+
+Style/FrozenStringLiteralComment:
+  Exclude:
+    - "db/migrate/*"
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes

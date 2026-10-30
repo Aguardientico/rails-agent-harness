@@ -75,7 +75,7 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       output = run_generator
 
       expect(output).to include("Test framework: rspec", "Database:       unknown", "Schema format:  ruby")
-      expect(output).to include("Next steps:", "Commit AGENTS.md, CLAUDE.md and config/agent_harness.yml")
+      expect(output).to include("Next steps:", "Commit AGENTS.md, CLAUDE.md, config/agent_harness.yml, bin/agent-check, .claude/settings.json.")
     end
   end
 
@@ -183,11 +183,35 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       output = run_generator
 
       expect(read("AGENTS.md")).to eq("<!-- BEGIN rails_agent_harness -->\nhalf a block\n")
-      expect(output).to include("error  AGENTS.md has <!-- BEGIN rails_agent_harness --> but no")
+      expect(output).to include("error  AGENTS.md has unmatched <!-- BEGIN rails_agent_harness -->")
+      expect(output).not_to include("Next steps:")
       expect(read("CLAUDE.md")).to include("@AGENTS.md")
       expect(File).to exist(File.join(root, "config/agent_harness.yml"))
       expect(exit_status).to eq(1)
-      expect(errors).to include("need fixing by hand", "AGENTS.md: <!-- BEGIN rails_agent_harness --> without <!-- END rails_agent_harness -->")
+      expect(errors).to include("need fixing by hand", "AGENTS.md: unmatched <!-- BEGIN rails_agent_harness --> / <!-- END rails_agent_harness --> markers")
+    end
+
+    it "reports nested markers and a lone END marker" do
+      nested = "<!-- BEGIN rails_agent_harness -->\n<!-- BEGIN rails_agent_harness -->\nx\n<!-- END rails_agent_harness -->\n<!-- END rails_agent_harness -->\n"
+      write("AGENTS.md", nested)
+      write("CLAUDE.md", "mine\n<!-- END rails_agent_harness -->\n")
+
+      run_generator
+
+      expect(read("AGENTS.md")).to eq(nested)
+      expect(read("CLAUDE.md")).to eq("mine\n<!-- END rails_agent_harness -->\n")
+      expect(exit_status).to eq(1)
+      expect(errors).to include("AGENTS.md: unmatched", "CLAUDE.md: unmatched")
+    end
+
+    it "reports a stray BEGIN marker after a complete block" do
+      stray = "<!-- BEGIN rails_agent_harness -->\nold\n<!-- END rails_agent_harness -->\n<!-- BEGIN rails_agent_harness -->\n"
+      write("AGENTS.md", stray)
+
+      run_generator
+
+      expect(read("AGENTS.md")).to eq(stray)
+      expect(exit_status).to eq(1)
     end
 
     it "exits zero when nothing needs fixing" do

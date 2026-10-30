@@ -15,6 +15,7 @@ else
 end
 gem "sqlite3", ">= 2.1"
 
+gem "brakeman", require: false
 gem "rake"
 gem "rspec", "~> 3.13"
 gem "standard"

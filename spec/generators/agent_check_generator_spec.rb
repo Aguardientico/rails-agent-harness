@@ -50,12 +50,16 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "bin/agent-check and 
   end
 
   describe ".claude/settings.json" do
-    it "is created with the PostToolUse and Stop hooks" do
+    it "is created with the PreToolUse, PostToolUse and Stop hooks" do
       run_generator
 
       expect(settings).to eq(
         "$schema" => "https://json.schemastore.org/claude-code-settings.json",
         "hooks" => {
+          "PreToolUse" => [{
+            "matcher" => "Edit|Write",
+            "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use", "timeout" => 10}]
+          }],
           "PostToolUse" => [{
             "matcher" => "Edit|Write",
             "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use", "timeout" => 60}]
@@ -91,6 +95,19 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "bin/agent-check and 
 
       expect(File.read(settings_path)).to eq(first)
       expect(output).to include("identical  .claude/settings.json")
+    end
+
+    it "adds the PreToolUse guard hook once, next to existing PreToolUse hooks" do
+      FileUtils.mkdir_p(File.dirname(settings_path))
+      File.write(settings_path, JSON.generate(
+        "hooks" => {"PreToolUse" => [{"matcher" => "Bash", "hooks" => [{"type" => "command", "command" => "block-rm.sh"}]}]}
+      ))
+
+      run_generator
+      run_generator
+
+      expect(hook_commands("PreToolUse")).to eq(["block-rm.sh", "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use"])
+      expect(settings["hooks"]["PreToolUse"].last).to include("matcher" => "Edit|Write")
     end
 
     it "doesn't add an entry when an existing hook already runs the same bin/agent-check hook" do

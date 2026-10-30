@@ -16,6 +16,10 @@ module AgentHarness
 
       # Our Claude Code hook entries, by event. The command identifies an entry when merging.
       CLAUDE_HOOKS = {
+        "PreToolUse" => {
+          "matcher" => "Edit|Write",
+          "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use", "timeout" => 10}]
+        },
         "PostToolUse" => {
           "matcher" => "Edit|Write",
           "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use", "timeout" => 60}]

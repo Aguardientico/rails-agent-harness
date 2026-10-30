@@ -3,10 +3,11 @@
 require "json"
 require "open3"
 require "optparse"
-require "pathname"
 require "rails_agent_harness"
 require "rails_agent_harness/app_detector"
 require "rails_agent_harness/changed_files"
+require "rails_agent_harness/guards/migration_guard"
+require "rails_agent_harness/paths"
 require "rails_agent_harness/runner"
 
 module RailsAgentHarness
@@ -17,7 +18,7 @@ module RailsAgentHarness
   #                                  2 (check failure, report on stderr) or 1 (harness error)
   class CLI
     # Hook event (as passed on the command line) => method handling it.
-    HOOKS = {"post-tool-use" => :post_tool_use_hook, "stop" => :stop_hook}
+    HOOKS = {"pre-tool-use" => :pre_tool_use_hook, "post-tool-use" => :post_tool_use_hook, "stop" => :stop_hook}
 
     # `root` is the app directory; the generated binstub passes its own app so the right app is
     # checked even when it lives in a subdirectory of a larger repository.
@@ -49,8 +50,23 @@ module RailsAgentHarness
       return options if options.is_a?(Integer)
 
       config = Configuration.load(root)
-      files = options[:files] || ChangedFiles.new(root, base_branch: options[:base] || config.base_branch).list
-      report = runner(config, files, options[:only]).call
+      if options[:files]
+        files = options[:files]
+        # With --base, "added" (for the migrations check) is worked out against that branch;
+        # outside a git repository the check falls back on its own.
+        if options[:base]
+          added = begin
+            ChangedFiles.new(root, base_branch: options[:base]).added
+          rescue Error
+            nil
+          end
+        end
+      else
+        changes = ChangedFiles.new(root, base_branch: options[:base] || config.base_branch)
+        files = changes.list
+        added = changes.added
+      end
+      report = runner(config, files, options[:only], added: added).call
       @stdout.puts report.to_s(max_lines: config.max_output_lines, verbose: options[:verbose])
       report.failed? ? 1 : 0
     end
@@ -109,6 +125,17 @@ module RailsAgentHarness
       send(handler, payload)
     end
 
+    # Before Write/Edit: the migration/schema guard. Blocked calls exit 2 with the reason on
+    # stderr (Claude Code blocks the tool call and shows it to the model). No git, no
+    # subprocesses.
+    def pre_tool_use_hook(payload)
+      decision = Guards::MigrationGuard.new(root: root, config: Configuration.load(root)).pre_tool_use(payload)
+      return 0 if decision.allowed?
+
+      @stderr.puts decision.message
+      2
+    end
+
     # After Write/Edit: RuboCop on the edited file only, to stay fast.
     def post_tool_use_hook(payload)
       tool_input = payload["tool_input"]
@@ -129,8 +156,8 @@ module RailsAgentHarness
       return 0 if payload["stop_hook_active"] == true
 
       config = Configuration.load(root)
-      files = ChangedFiles.new(root, base_branch: config.base_branch).list
-      report_hook(runner(config, files, nil).call, config)
+      changes = ChangedFiles.new(root, base_branch: config.base_branch)
+      report_hook(runner(config, changes.list, nil, added: changes.added).call, config)
     end
 
     # Exit 2 with the report on stderr (Claude Code feeds it back to the model) on failure.
@@ -157,9 +184,9 @@ module RailsAgentHarness
       0
     end
 
-    def runner(config, files, only)
+    def runner(config, files, only, added: nil)
       checks = only ? only.map { |name| Checks.find(name) } : Checks.registry
-      Runner.new(root: root, config: config, profile: AppDetector.new(root).detect, files: files, checks: checks)
+      Runner.new(root: root, config: config, profile: AppDetector.new(root).detect, files: files, added: added, checks: checks)
     end
 
     # The project root: the one passed to .start, else $CLAUDE_PROJECT_DIR, else the git top
@@ -177,12 +204,7 @@ module RailsAgentHarness
 
     # `path` relative to the project root, or nil when it is outside it.
     def relative_path(path)
-      absolute = Pathname.new(File.expand_path(path, root))
-      base = Pathname.new(root)
-      absolute = Pathname.new(File.realpath(absolute)) if absolute.exist?
-      base = Pathname.new(File.realpath(base)) if base.exist?
-      relative = absolute.relative_path_from(base).to_s
-      (relative == ".." || relative.start_with?("../")) ? nil : relative
+      Paths.relative(path, root)
     end
   end
 end

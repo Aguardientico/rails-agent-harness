@@ -81,7 +81,29 @@ RSpec.describe RailsAgentHarness::Checks::Brakeman do
   it "fails when Brakeman exits non-zero even with valid JSON" do
     result = check(runner: AgentCheckHelper::FakeRunner.new(output: JSON.generate("warnings" => []), exit_status: 1))
 
-    expect(result).to have_attributes(status: :fail, summary: "could not read Brakeman's JSON output (exit status 1)")
+    expect(result).to have_attributes(status: :fail, summary: "brakeman exited with status 1")
+  end
+
+  it "matches parse errors to changed files by whole path" do
+    output = JSON.generate("warnings" => [], "errors" => [parse_error("app/lib/a.rb")])
+
+    expect(check(%w[lib/a.rb], runner: AgentCheckHelper::FakeRunner.new(output: output)).status).to eq(:pass)
+    expect(check(%w[app/lib/a.rb], runner: AgentCheckHelper::FakeRunner.new(output: output)).status).to eq(:fail)
+
+    absolute = JSON.generate("warnings" => [], "errors" => [{"error" => "#{root}/app/models/post.rb:3 :: parse error"}])
+    expect(check(%w[app/models/post.rb], runner: AgentCheckHelper::FakeRunner.new(output: absolute)).status).to eq(:fail)
+  end
+
+  it "matches parse errors reported under the root's real path when the root is a symlink" do
+    Dir.mktmpdir do |dir|
+      link = File.join(dir, "link")
+      File.symlink(root, link)
+      output = JSON.generate("warnings" => [], "errors" => [{"error" => "#{File.realpath(root)}/app/models/post.rb:3 :: parse error"}])
+      result = described_class.new(root: link, config: config, profile: build_profile, files: %w[app/models/post.rb],
+        runner: AgentCheckHelper::FakeRunner.new(output: output)).call
+
+      expect(result.status).to eq(:fail)
+    end
   end
 
   it "passes with only Weak warnings" do

@@ -40,7 +40,9 @@ require "rails_agent_harness/checks/base"
 require "rails_agent_harness/checks/rubocop"
 require "rails_agent_harness/checks/brakeman"
 require "rails_agent_harness/checks/tests"
+require "rails_agent_harness/checks/migrations"
 
 RailsAgentHarness::Checks.register(RailsAgentHarness::Checks::Rubocop)
 RailsAgentHarness::Checks.register(RailsAgentHarness::Checks::Brakeman)
 RailsAgentHarness::Checks.register(RailsAgentHarness::Checks::Tests)
+RailsAgentHarness::Checks.register(RailsAgentHarness::Checks::Migrations, position: :first)

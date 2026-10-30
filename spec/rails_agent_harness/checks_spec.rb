@@ -19,26 +19,26 @@ RSpec.describe RailsAgentHarness::Checks do
   end
 
   it "registers the default checks in order" do
-    expect(described_class.registry.map(&:check_name)).to eq(%w[rubocop brakeman tests])
+    expect(described_class.registry.map(&:check_name)).to eq(%w[migrations rubocop brakeman tests])
   end
 
   it "registers a check at the end by default" do
     described_class.register(dummy_check)
 
-    expect(described_class.registry.map(&:check_name)).to eq(%w[rubocop brakeman tests dummy])
+    expect(described_class.registry.map(&:check_name)).to eq(%w[migrations rubocop brakeman tests dummy])
   end
 
   it "registers a check first with position: :first" do
     described_class.register(dummy_check, position: :first)
 
-    expect(described_class.registry.map(&:check_name)).to eq(%w[dummy rubocop brakeman tests])
+    expect(described_class.registry.map(&:check_name)).to eq(%w[dummy migrations rubocop brakeman tests])
   end
 
   it "doesn't register a check twice" do
     described_class.register(dummy_check)
     described_class.register(dummy_check, position: :first)
 
-    expect(described_class.registry.map(&:check_name)).to eq(%w[dummy rubocop brakeman tests])
+    expect(described_class.registry.map(&:check_name)).to eq(%w[dummy migrations rubocop brakeman tests])
   end
 
   it "rejects an unknown position" do

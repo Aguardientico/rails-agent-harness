@@ -5,9 +5,19 @@ Description:
       config/agent_harness.yml  settings for rails_agent_harness (kept on re-runs
                                 unless --force)
       AGENTS.md                 agent instructions tuned to this app
-      CLAUDE.md                 imports AGENTS.md for Claude Code
+      bin/agent-check           the checker
+      .claude/settings.json     Claude Code hooks (merged into an existing file)
+      .claude/skills/rails-review/SKILL.md
+                                the rails-review skill
 
-    AGENTS.md and CLAUDE.md get a block between
+    No CLAUDE.md is created: Claude Code 2.1.277+ reads AGENTS.md when the
+    project has no CLAUDE.md. If the app already has a CLAUDE.md (or
+    .claude/CLAUDE.md), the generator adds an @AGENTS.md import to it, since
+    Claude Code then reads only that file. Older Claude Code versions need a
+    CLAUDE.md containing @AGENTS.md; create one and re-run. CLAUDE.local.md is
+    never edited.
+
+    AGENTS.md and an existing CLAUDE.md get a block between
     <!-- BEGIN rails_agent_harness --> and <!-- END rails_agent_harness -->
     markers. Existing content outside the markers is preserved, and re-running
     the generator only replaces the block.

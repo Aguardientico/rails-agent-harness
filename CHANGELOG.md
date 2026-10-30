@@ -15,9 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deep merge, type checks, warnings for unknown keys), a Railtie, and CI for Ruby 3.3/3.4/4.0
   on Rails 8.1 plus Rails `main`.
 - `bin/rails g agent_harness:install`: detects the app's stack (Rails version, RSpec or
-  Minitest, database, RuboCop/Standard, Brakeman, schema format) and writes `AGENTS.md`,
-  `CLAUDE.md` (importing `AGENTS.md`) and `config/agent_harness.yml`. Re-runs only refresh the
-  marked block and keep user content.
+  Minitest, database, RuboCop/Standard, Brakeman, schema format) and writes `AGENTS.md` and
+  `config/agent_harness.yml`. It doesn't create a `CLAUDE.md` (Claude Code 2.1.277+ reads
+  `AGENTS.md` directly); an existing `CLAUDE.md` or `.claude/CLAUDE.md` gets an `@AGENTS.md`
+  import. Re-runs only refresh the marked block and keep user content.
 - `bin/agent-check`: checks the change set since the merge base with RuboCop on changed files,
   Brakeman and the tests mapped to the changed files; plain-text, truncated output; exit
   status 0/1. Claude Code hooks (`PostToolUse` RuboCop on the edited file, `Stop` full check)

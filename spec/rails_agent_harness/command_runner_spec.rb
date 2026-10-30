@@ -27,6 +27,13 @@ RSpec.describe RailsAgentHarness::CommandRunner do
     expect(runner.call("ruby", "-e", "print ARGV.first", "$HOME; echo hi").output).to eq("$HOME; echo hi")
   end
 
+  it "never uses a shell, even for a single argument with shell metacharacters" do
+    result = runner.call("echo first; echo second")
+
+    expect(result.exit_status).to eq(127)
+    expect(result.output).not_to match(/^(first|second)$/)
+  end
+
   it "reports a missing executable as exit status 127" do
     result = runner.call("definitely-not-a-command-#{Process.pid}")
 

@@ -44,7 +44,8 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "bin/agent-check and 
 
       expect(File.executable?(binstub)).to be(true)
       expect(File.read(binstub)).to start_with("#!/usr/bin/env ruby\n# frozen_string_literal: true\n")
-      expect(File.read(binstub)).to include('require "bundler/setup"', 'require "rails_agent_harness/cli"', "exit RailsAgentHarness::CLI.start(ARGV)")
+      expect(File.read(binstub)).to include('require "bundler/setup"', 'require "rails_agent_harness/cli"',
+        'exit RailsAgentHarness::CLI.start(ARGV, root: File.expand_path("..", __dir__))')
     end
   end
 

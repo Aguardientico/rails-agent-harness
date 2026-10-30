@@ -39,6 +39,22 @@ RSpec.describe RailsAgentHarness::ChangedFiles do
     end
   end
 
+  it "lists only the app's files, relative to it, when the app is a subdirectory of the repository" do
+    with_git_repo("web/app/a.rb" => "a\n", "web/app/b.rb" => "b\n", "other/x.rb" => "x\n") do |repo|
+      git(repo, "checkout", "-q", "-b", "feature")
+      touch(repo, "web/app/a.rb", "changed\n")
+      git(repo, "commit", "-q", "-am", "change a")
+      touch(repo, "web/app/b.rb", "unstaged\n")
+      touch(repo, "web/app/new.rb", "new\n")
+      touch(repo, "other/x.rb", "changed\n")
+      touch(repo, "other/new.rb", "new\n")
+
+      files = changed(File.join(repo, "web"))
+      expect(files.list).to eq(%w[app/a.rb app/b.rb app/new.rb])
+      expect(files.added).to eq(%w[app/new.rb])
+    end
+  end
+
   it "lists only added files in #added" do
     with_git_repo("app/a.rb" => "a\n") do |root|
       git(root, "checkout", "-q", "-b", "feature")

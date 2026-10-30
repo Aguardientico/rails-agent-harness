@@ -4,7 +4,8 @@ require "open3"
 
 module RailsAgentHarness
   # Files that differ from the merge base with the base branch: committed on this branch,
-  # staged, unstaged and untracked. Paths are root-relative.
+  # staged, unstaged and untracked. Paths are root-relative, and only files under the root
+  # count (the app can be a subdirectory of a larger repository).
   class ChangedFiles
     # `git hash-object -t tree /dev/null`: diffing against it lists every file in a repo
     # that has no commits yet.
@@ -21,12 +22,12 @@ module RailsAgentHarness
     # Existing files that were added, copied, modified or renamed since the merge base,
     # plus untracked files (respecting .gitignore).
     def list
-      @list ||= existing(git_paths("diff", "--name-only", "-z", "--diff-filter=ACMR", merge_base) + untracked)
+      @list ||= existing(git_paths("diff", "--relative", "--name-only", "-z", "--diff-filter=ACMR", merge_base) + untracked)
     end
 
     # Files newly added since the merge base, plus untracked files.
     def added
-      @added ||= existing(git_paths("diff", "--name-only", "-z", "--diff-filter=A", merge_base) + untracked)
+      @added ||= existing(git_paths("diff", "--relative", "--name-only", "-z", "--diff-filter=A", merge_base) + untracked)
     end
 
     # `git merge-base HEAD <base>`, then against `origin/<base>`; HEAD when neither resolves

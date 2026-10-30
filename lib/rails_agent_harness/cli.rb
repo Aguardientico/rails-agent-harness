@@ -19,15 +19,18 @@ module RailsAgentHarness
     # Hook event (as passed on the command line) => method handling it.
     HOOKS = {"post-tool-use" => :post_tool_use_hook, "stop" => :stop_hook}
 
-    def self.start(argv, stdin: $stdin, stdout: $stdout, stderr: $stderr, env: ENV)
-      new(stdin: stdin, stdout: stdout, stderr: stderr, env: env).run(argv.dup)
+    # `root` is the app directory; the generated binstub passes its own app so the right app is
+    # checked even when it lives in a subdirectory of a larger repository.
+    def self.start(argv, stdin: $stdin, stdout: $stdout, stderr: $stderr, env: ENV, root: nil)
+      new(stdin: stdin, stdout: stdout, stderr: stderr, env: env, root: root).run(argv.dup)
     end
 
-    def initialize(stdin:, stdout:, stderr:, env:)
+    def initialize(stdin:, stdout:, stderr:, env:, root: nil)
       @stdin = stdin
       @stdout = stdout
       @stderr = stderr
       @env = env
+      @root = File.expand_path(root) if root
     end
 
     def run(argv)
@@ -108,7 +111,8 @@ module RailsAgentHarness
 
     # After Write/Edit: RuboCop on the edited file only, to stay fast.
     def post_tool_use_hook(payload)
-      file_path = payload.dig("tool_input", "file_path")
+      tool_input = payload["tool_input"]
+      file_path = tool_input["file_path"] if tool_input.is_a?(Hash)
       return ignore_hook("no tool_input.file_path in hook input") unless file_path.is_a?(String) && !file_path.empty?
 
       file = relative_path(file_path)
@@ -158,7 +162,8 @@ module RailsAgentHarness
       Runner.new(root: root, config: config, profile: AppDetector.new(root).detect, files: files, checks: checks)
     end
 
-    # The project root: $CLAUDE_PROJECT_DIR, else the git top level, else the current directory.
+    # The project root: the one passed to .start, else $CLAUDE_PROJECT_DIR, else the git top
+    # level, else the current directory.
     def root
       @root ||= begin
         dir = @env["CLAUDE_PROJECT_DIR"].to_s

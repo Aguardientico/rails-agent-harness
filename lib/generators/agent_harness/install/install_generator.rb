@@ -12,6 +12,7 @@ module AgentHarness
       BEGIN_MARKER = "<!-- BEGIN rails_agent_harness -->"
       END_MARKER = "<!-- END rails_agent_harness -->"
       MARKED_BLOCK = /#{Regexp.escape(BEGIN_MARKER)}.*?#{Regexp.escape(END_MARKER)}\n?/m
+      MARKER = /#{Regexp.escape(BEGIN_MARKER)}|#{Regexp.escape(END_MARKER)}/
 
       # Our Claude Code hook entries, by event. The command identifies an entry when merging.
       CLAUDE_HOOKS = {
@@ -120,6 +121,12 @@ module AgentHarness
         @problems ||= []
       end
 
+      # Whether the markers in `text` are complete BEGIN/END pairs, in order.
+      def markers_paired?(text)
+        markers = text.scan(MARKER)
+        markers.any? && markers.each_slice(2).all? { |pair| pair == [BEGIN_MARKER, END_MARKER] }
+      end
+
       def same_file?(path, other)
         File.exist?(File.join(destination_root, path)) && File.exist?(File.join(destination_root, other)) &&
           File.identical?(File.join(destination_root, path), File.join(destination_root, other))
@@ -137,8 +144,8 @@ module AgentHarness
 
         existing = File.read(full_path)
         updated =
-          if existing.include?(BEGIN_MARKER)
-            unless existing.scan(BEGIN_MARKER).size == existing.scan(END_MARKER).size && existing.match?(MARKED_BLOCK)
+          if existing.include?(BEGIN_MARKER) || existing.include?(END_MARKER)
+            unless markers_paired?(existing)
               problems << "#{path}: unmatched #{BEGIN_MARKER} / #{END_MARKER} markers"
               return say_status(:error, "#{path} has unmatched #{BEGIN_MARKER} / #{END_MARKER} markers; fix them and re-run", :red)
             end

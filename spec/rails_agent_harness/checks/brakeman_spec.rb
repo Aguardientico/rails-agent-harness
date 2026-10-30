@@ -47,14 +47,41 @@ RSpec.describe RailsAgentHarness::Checks::Brakeman do
     expect(runner.options).to eq([{separate_stderr: true}])
   end
 
+  # Brakeman's real error shape: the file is in the message, `location` is its own backtrace.
+  def parse_error(file)
+    {"error" => "#{file}:3 :: parse error on value \"end\" (kEND) While processing #{file}",
+     "location" => "/gems/ruby_parser-3.22.0/lib/ruby_parser.rb:41:in `process'"}
+  end
+
   it "lists files Brakeman couldn't parse next to the warnings" do
-    output = JSON.generate("warnings" => [warning("High")], "errors" => [{"error" => "app/models/x.rb parse error", "location" => "app/models/x.rb:3"}])
+    output = JSON.generate("warnings" => [warning("High")], "errors" => [parse_error("app/models/x.rb")])
     result = check(runner: AgentCheckHelper::FakeRunner.new(output: output))
 
+    expect(result).to have_attributes(status: :fail, summary: "1 warning")
     expect(result.details).to eq([
       "app/controllers/posts_controller.rb:12 [High] SQL Injection: Possible SQL injection",
-      "brakeman error: app/models/x.rb parse error (app/models/x.rb:3)"
+      "brakeman error: app/models/x.rb:3 :: parse error on value \"end\" (kEND) While processing app/models/x.rb"
     ])
+  end
+
+  it "fails when a changed file couldn't be scanned" do
+    output = JSON.generate("warnings" => [], "errors" => [parse_error("app/models/post.rb")])
+    result = check(%w[app/models/post.rb], runner: AgentCheckHelper::FakeRunner.new(output: output))
+
+    expect(result).to have_attributes(status: :fail, summary: "1 changed file not scanned")
+    expect(result.details.first).to start_with("brakeman error: app/models/post.rb:3 :: parse error")
+  end
+
+  it "passes when only an unchanged file couldn't be scanned" do
+    output = JSON.generate("warnings" => [], "errors" => [parse_error("app/models/legacy.rb")])
+
+    expect(check(%w[app/models/post.rb], runner: AgentCheckHelper::FakeRunner.new(output: output)).status).to eq(:pass)
+  end
+
+  it "fails when Brakeman exits non-zero even with valid JSON" do
+    result = check(runner: AgentCheckHelper::FakeRunner.new(output: JSON.generate("warnings" => []), exit_status: 1))
+
+    expect(result).to have_attributes(status: :fail, summary: "could not read Brakeman's JSON output (exit status 1)")
   end
 
   it "passes with only Weak warnings" do

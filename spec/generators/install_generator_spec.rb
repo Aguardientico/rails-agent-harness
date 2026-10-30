@@ -191,6 +191,19 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       expect(errors).to include("need fixing by hand", "AGENTS.md: unmatched <!-- BEGIN rails_agent_harness --> / <!-- END rails_agent_harness --> markers")
     end
 
+    it "reports nested markers and a lone END marker" do
+      nested = "<!-- BEGIN rails_agent_harness -->\n<!-- BEGIN rails_agent_harness -->\nx\n<!-- END rails_agent_harness -->\n<!-- END rails_agent_harness -->\n"
+      write("AGENTS.md", nested)
+      write("CLAUDE.md", "mine\n<!-- END rails_agent_harness -->\n")
+
+      run_generator
+
+      expect(read("AGENTS.md")).to eq(nested)
+      expect(read("CLAUDE.md")).to eq("mine\n<!-- END rails_agent_harness -->\n")
+      expect(exit_status).to eq(1)
+      expect(errors).to include("AGENTS.md: unmatched", "CLAUDE.md: unmatched")
+    end
+
     it "reports a stray BEGIN marker after a complete block" do
       stray = "<!-- BEGIN rails_agent_harness -->\nold\n<!-- END rails_agent_harness -->\n<!-- BEGIN rails_agent_harness -->\n"
       write("AGENTS.md", stray)

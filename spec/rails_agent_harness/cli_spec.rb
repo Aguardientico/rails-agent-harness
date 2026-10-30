@@ -118,6 +118,16 @@ RSpec.describe RailsAgentHarness::CLI do
       expect(stderr.string).to eq("agent-check: RuntimeError: boom\n")
     end
 
+    it "prefers an explicit root over CLAUDE_PROJECT_DIR" do
+      @stdout = StringIO.new
+      @stderr = StringIO.new
+      status = described_class.start([], stdin: StringIO.new, stdout: @stdout, stderr: @stderr,
+        env: {"CLAUDE_PROJECT_DIR" => "/nonexistent"}, root: root)
+
+      expect(status).to eq(0)
+      expect(stdout.string).to include("agent-check: PASS")
+    end
+
     it "uses the git top level when CLAUDE_PROJECT_DIR is not set" do
       subdir = File.join(root, "app/models")
       Dir.chdir(subdir) { run_cli(env: {}) }
@@ -163,6 +173,8 @@ RSpec.describe RailsAgentHarness::CLI do
       expect(run_cli("hook", "post-tool-use", stdin: "")).to eq(0)
       expect(run_cli("hook", "post-tool-use", stdin: "[]")).to eq(0)
       expect(run_cli("hook", "post-tool-use", stdin: JSON.generate("tool_input" => {}))).to eq(0)
+      expect(stderr.string).to include("no tool_input.file_path")
+      expect(run_cli("hook", "post-tool-use", stdin: JSON.generate("tool_input" => "bad"))).to eq(0)
       expect(stderr.string).to include("no tool_input.file_path")
       expect(calls).to be_empty
     end

@@ -23,10 +23,10 @@ module RailsAgentHarness
     def call(*argv, separate_stderr: false)
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       if separate_stderr
-        stdout, stderr, status = Open3.capture3(*argv, chdir: @root)
+        stdout, stderr, status = Open3.capture3(*command(argv), chdir: @root)
         output = stdout + stderr
       else
-        output, status = Open3.capture2e(*argv, chdir: @root)
+        output, status = Open3.capture2e(*command(argv), chdir: @root)
         stdout = output
       end
       Result.new(output: output, exit_status: status.exitstatus || 1, duration: elapsed(started), stdout: stdout)
@@ -35,6 +35,12 @@ module RailsAgentHarness
     end
 
     private
+
+    # `[[exe, exe], *args]`: the array form makes Ruby run `exe` directly even when there are
+    # no arguments (a lone string with shell metacharacters would otherwise go to a shell).
+    def command(argv)
+      [[argv.first, argv.first], *argv.drop(1)]
+    end
 
     def elapsed(started)
       Process.clock_gettime(Process::CLOCK_MONOTONIC) - started

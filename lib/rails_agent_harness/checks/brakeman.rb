@@ -21,15 +21,21 @@ module RailsAgentHarness
 
         result = run(command + ARGS, separate_stderr: true)
         report = parse(result.stdout)
-        return failure("could not read Brakeman's JSON output (exit status #{result.exit_status})", tail(result.output)) unless report
+        # With --no-exit-on-warn/--no-exit-on-error, a non-zero exit means Brakeman itself failed.
+        unless report && result.success?
+          return failure("could not read Brakeman's JSON output (exit status #{result.exit_status})", tail(result.output))
+        end
 
         warnings = report.fetch("warnings", []).select { |warning| FAILING_CONFIDENCE.include?(warning["confidence"]) }
-        return pass if warnings.empty?
+        errors = scan_errors(report)
+        unscanned = errors.select { |error| files.any? { |file| error.include?(file) } }
+        return pass if warnings.empty? && unscanned.empty?
 
         details = warnings.map do |warning|
           "#{warning["file"]}:#{warning["line"]} [#{warning["confidence"]}] #{warning["warning_type"]}: #{warning["message"]}"
         end
-        failure(pluralize(warnings.size, "warning"), details.sort + error_details(report))
+        summary = [(pluralize(warnings.size, "warning") if warnings.any?), (pluralize(unscanned.size, "changed file") + " not scanned" if unscanned.any?)]
+        failure(summary.compact.join(", "), details.sort + errors.map { |error| "brakeman error: #{error}" })
       end
 
       private
@@ -50,11 +56,13 @@ module RailsAgentHarness
         nil
       end
 
-      # Files Brakeman couldn't parse (and so didn't scan), shown next to the warnings.
-      def error_details(report)
-        Array(report["errors"]).map do |error|
-          "brakeman error: #{error["error"]}#{" (#{error["location"]})" if error["location"]}"
-        end
+      # Messages for files Brakeman couldn't parse, and so didn't scan, such as
+      # "app/models/x.rb:3 :: parse error on value ... While processing app/models/x.rb"
+      # (`location` is a Brakeman backtrace, not the app file). An error naming a changed file
+      # fails the check, since that change wasn't scanned; other errors are only listed, so a
+      # pre-existing problem can't trap the agent.
+      def scan_errors(report)
+        Array(report["errors"]).filter_map { |error| error["error"].to_s.strip if error.is_a?(Hash) }
       end
     end
   end

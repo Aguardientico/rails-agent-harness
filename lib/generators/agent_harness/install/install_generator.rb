@@ -29,11 +29,15 @@ module AgentHarness
         }
       }.freeze
       CLAUDE_SETTINGS_SCHEMA = "https://json.schemastore.org/claude-code-settings.json"
+      # Project CLAUDE.md files that Claude Code reads instead of AGENTS.md. We only add the
+      # AGENTS.md import to one that already exists: Claude Code 2.1.277+ reads AGENTS.md itself
+      # when there is none.
+      CLAUDE_MD_PATHS = %w[CLAUDE.md .claude/CLAUDE.md].freeze
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Writes AGENTS.md, CLAUDE.md, config/agent_harness.yml and bin/agent-check tuned to this " \
-        "app's stack, and wires bin/agent-check into Claude Code hooks."
+      desc "Writes AGENTS.md, config/agent_harness.yml and bin/agent-check tuned to this app's stack, " \
+        "imports AGENTS.md from an existing CLAUDE.md, and wires bin/agent-check into Claude Code hooks."
 
       class_option :skip_claude_hooks, type: :boolean, default: false,
         desc: "Don't add bin/agent-check hooks to .claude/settings.json"
@@ -56,12 +60,20 @@ module AgentHarness
         upsert_marked_block "AGENTS.md", agents_md
       end
 
-      def create_claude_md
-        if same_file?("CLAUDE.md", "AGENTS.md")
-          return say_status(:skip, "CLAUDE.md (same file as AGENTS.md, which already has the instructions)", :yellow)
+      # Only an existing CLAUDE.md (./CLAUDE.md, else .claude/CLAUDE.md) gets the import: while
+      # one exists Claude Code reads it instead of AGENTS.md. CLAUDE.local.md is personal and
+      # usually not committed, so it is never edited, but it also stops Claude Code from reading
+      # AGENTS.md, so its presence is pointed out.
+      def update_claude_md
+        path = CLAUDE_MD_PATHS.find { |candidate| app_file?(candidate) }
+        return note_missing_claude_md unless path
+
+        if same_file?(path, "AGENTS.md")
+          return say_status(:skip, "#{path} (same file as AGENTS.md, which already has the instructions)", :yellow)
         end
 
-        upsert_marked_block "CLAUDE.md", <<~MARKDOWN
+        @claude_md = path
+        upsert_marked_block path, <<~MARKDOWN
           @AGENTS.md
 
           This project's agent instructions live in AGENTS.md (shared by Claude Code, Codex and Cursor). Read it before making changes.
@@ -133,10 +145,17 @@ module AgentHarness
 
       # The files this run manages, for the summary.
       def generated_files
-        files = %w[AGENTS.md CLAUDE.md config/agent_harness.yml bin/agent-check]
+        files = ["AGENTS.md", *@claude_md, "config/agent_harness.yml", "bin/agent-check"]
         files << ".claude/settings.json" unless options[:skip_claude_hooks]
         files << ".claude/skills/rails-review/SKILL.md" unless options[:skip_skills]
         files
+      end
+
+      def note_missing_claude_md
+        say_status :skip, "CLAUDE.md (none; Claude Code 2.1.277+ reads AGENTS.md directly, older versions need a CLAUDE.md with @AGENTS.md)", :blue
+        return unless app_file?("CLAUDE.local.md")
+
+        say_status :note, "CLAUDE.local.md stops Claude Code from reading AGENTS.md; add @AGENTS.md to it", :yellow
       end
 
       # Problems reported by steps; #print_summary turns them into a non-zero exit.

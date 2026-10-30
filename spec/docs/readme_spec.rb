@@ -54,7 +54,7 @@ RSpec.describe "README.md" do
       expect(options).to include(option)
       expect(section("Install")).to include("`#{option}`")
     end
-    %w[AGENTS.md CLAUDE.md config/agent_harness.yml bin/agent-check .claude/settings.json .claude/skills/rails-review/SKILL.md].each do |file|
+    %w[AGENTS.md CLAUDE.md .claude/CLAUDE.md config/agent_harness.yml bin/agent-check .claude/settings.json .claude/skills/rails-review/SKILL.md].each do |file|
       expect(section("Install")).to include(file)
     end
   end

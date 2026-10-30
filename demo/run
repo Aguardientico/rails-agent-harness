@@ -38,7 +38,7 @@ class Demo
 
       section "2. Install rails_agent_harness"
       step "bin/rails g agent_harness:install", expect: 0, filter: GENERATOR_STATUS
-      quiet(*GIT, "add", "AGENTS.md", "CLAUDE.md", "config/agent_harness.yml", "bin/agent-check", ".claude")
+      quiet(*GIT, "add", "AGENTS.md", "config/agent_harness.yml", "bin/agent-check", ".claude")
       quiet(*GIT, "commit", "-q", "-m", "Install rails_agent_harness")
 
       section "3. After: bin/agent-check reports the problems"

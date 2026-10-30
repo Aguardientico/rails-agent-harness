@@ -20,7 +20,7 @@ $ git status --short
 $ bin/rails g agent_harness:install
       create  config/agent_harness.yml
       create  AGENTS.md
-      create  CLAUDE.md
+        skip  CLAUDE.md (none; Claude Code 2.1.277+ reads AGENTS.md directly, older versions need a CLAUDE.md with @AGENTS.md)
       create  bin/agent-check
       create  .claude/settings.json
       create  .claude/skills/rails-review/SKILL.md

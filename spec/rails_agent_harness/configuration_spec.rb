@@ -150,6 +150,35 @@ RSpec.describe RailsAgentHarness::Configuration do
       expect(described_class::DEFAULTS["checks"]["rubocop"]["enabled"]).to be(true)
     end
 
+    it "isolates strings returned by #to_h from the configuration" do
+      write_config(<<~YAML)
+        base_branch: develop
+        checks:
+          tests:
+            command: bin/rails test
+      YAML
+      config = described_class.load(root)
+      copy = config.to_h
+      copy["base_branch"].replace("changed")
+      copy["checks"]["tests"]["command"] << " --fail-fast"
+
+      expect(config.base_branch).to eq("develop")
+      expect(config.check_command(:tests)).to eq("bin/rails test")
+    end
+
+    it "returns frozen values from the accessors" do
+      write_config("base_branch: develop\nchecks:\n  tests:\n    command: bin/rails test\n")
+      config = described_class.load(root)
+
+      expect(config.base_branch).to be_frozen
+      expect(config.check_command(:tests)).to be_frozen
+      expect { config.base_branch << "x" }.to raise_error(FrozenError)
+    end
+
+    it "is only built through .load" do
+      expect { described_class.new({}) }.to raise_error(NoMethodError)
+    end
+
     context "with invalid files" do
       it "raises ConfigurationError with the path for invalid YAML" do
         path = write_config("checks: [unclosed\n")
@@ -198,6 +227,28 @@ RSpec.describe RailsAgentHarness::Configuration do
           .to raise_error(RailsAgentHarness::ConfigurationError, /#{Regexp.escape(path)}.*"checks"/)
       end
 
+      {
+        "base_branch: \"\"" => /"base_branch" must be a non-empty string, got ""/,
+        "base_branch: 123" => /"base_branch" must be a non-empty string, got 123/,
+        "base_branch:" => /"base_branch" must be a non-empty string, got nil/,
+        "max_output_lines: lots" => /"max_output_lines" must be a positive integer, got "lots"/,
+        "max_output_lines: 0" => /"max_output_lines" must be a positive integer, got 0/,
+        "max_output_lines: -5" => /"max_output_lines" must be a positive integer, got -5/,
+        "max_output_lines: 1.5" => /"max_output_lines" must be a positive integer, got 1.5/,
+        "checks:\n  rubocop:\n    enabled: \"false\"" => /"checks.rubocop.enabled" must be true or false, got "false"/,
+        "checks:\n  tests:\n    enabled:" => /"checks.tests.enabled" must be true or false, got nil/,
+        "guards:\n  schema:\n    enabled: 1" => /"guards.schema.enabled" must be true or false, got 1/,
+        "checks:\n  brakeman:\n    command: 123" => /"checks.brakeman.command" must be a string or null, got 123/,
+        "checks:\n  tests:\n    command: [rspec]" => /"checks.tests.command" must be a string or null, got \["rspec"\]/
+      }.each do |yaml, message|
+        it "raises ConfigurationError with the key path for #{yaml.inspect}" do
+          path = write_config("#{yaml}\n")
+
+          expect { described_class.load(root) }
+            .to raise_error(RailsAgentHarness::ConfigurationError, /#{Regexp.escape(path)}: #{message}/)
+        end
+      end
+
       it "raises ConfigurationError when a known entry is not a mapping" do
         path = write_config("guards:\n  schema: false\n")
 
@@ -229,6 +280,45 @@ RSpec.describe RailsAgentHarness::Configuration do
         ERR
         expect(config.base_branch).to eq("develop")
         expect(config.check_enabled?(:rubocop)).to be(false)
+      end
+
+      it "warns for unknown entries left empty" do
+        write_config(<<~YAML)
+          checks:
+            rubcop:
+          guards:
+            migratons:
+        YAML
+
+        expect { described_class.load(root) }.to output(<<~ERR).to_stderr
+          agent_harness: unknown config key "checks.rubcop" in config/agent_harness.yml
+          agent_harness: unknown config key "guards.migratons" in config/agent_harness.yml
+        ERR
+      end
+
+      it "warns for unknown keys inside a known entry" do
+        write_config(<<~YAML)
+          checks:
+            rubocop:
+              comand: bin/rubocop
+          guards:
+            schema:
+              enabeld: false
+        YAML
+        config = nil
+
+        expect { config = described_class.load(root) }.to output(<<~ERR).to_stderr
+          agent_harness: unknown config key "checks.rubocop.comand" in config/agent_harness.yml
+          agent_harness: unknown config key "guards.schema.enabeld" in config/agent_harness.yml
+        ERR
+        expect(config.check_command(:rubocop)).to be_nil
+        expect(config.guard_enabled?(:schema)).to be(true)
+      end
+
+      it "does not type-check unknown keys" do
+        write_config("checks:\n  foo:\n    enabled: maybe\n")
+
+        expect { described_class.load(root) }.to output(/checks\.foo/).to_stderr
       end
 
       it "does not warn for a valid file" do

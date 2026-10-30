@@ -8,6 +8,7 @@ module RailsAgentHarness
   # use it without booting the host app.
   class Configuration
     PATH = "config/agent_harness.yml"
+    SECTIONS = %w[checks guards].freeze
 
     DEFAULTS = {
       "base_branch" => "main",
@@ -23,16 +24,18 @@ module RailsAgentHarness
       }
     }
 
-    def self.deep_freeze(object)
-      case object
-      when Hash then object.each_value { |value| deep_freeze(value) }
-      when Array then object.each { |value| deep_freeze(value) }
+    module DeepFreeze
+      def self.call(object)
+        case object
+        when Hash then object.each_value { |value| call(value) }
+        when Array then object.each { |value| call(value) }
+        end
+        object.freeze
       end
-      object.freeze
     end
-    private_class_method :deep_freeze
+    private_constant :DeepFreeze
 
-    deep_freeze(DEFAULTS)
+    DeepFreeze.call(DEFAULTS)
 
     def self.load(root = Dir.pwd)
       new(read(File.join(root.to_s, PATH)))
@@ -49,23 +52,25 @@ module RailsAgentHarness
 
       validate_sections(data, path)
       warn_unknown_keys(data)
+      validate_values(data, path)
       data
     rescue Psych::Exception => e
       raise ConfigurationError, "Invalid YAML in #{path}: #{e.message}"
     end
     private_class_method :read
 
-    # Empty sections (`checks:` with everything commented out) are treated as
-    # absent; any other non-mapping value for a known section is an error.
+    # Empty known sections and entries (`checks:` with everything commented
+    # out) are treated as absent; any other non-mapping value for them is an
+    # error. Unknown entries are left alone so they still get a warning.
     def self.validate_sections(data, path)
-      %w[checks guards].each do |section|
+      SECTIONS.each do |section|
         data.delete(section) if data.key?(section) && data[section].nil?
         next unless data.key?(section)
 
         unless data[section].is_a?(Hash)
           raise ConfigurationError, "#{path}: \"#{section}\" must be a mapping"
         end
-        data[section].delete_if { |_name, entry| entry.nil? }
+        data[section].delete_if { |name, entry| entry.nil? && DEFAULTS[section].key?(name.to_s) }
         data[section].each do |name, entry|
           next if entry.is_a?(Hash) || !DEFAULTS[section].key?(name.to_s)
 
@@ -76,16 +81,18 @@ module RailsAgentHarness
     private_class_method :validate_sections
 
     def self.warn_unknown_keys(data)
-      unknown_keys(data, DEFAULTS).each do |key|
-        warn %(agent_harness: unknown config key "#{key}" in #{PATH})
-      end
-      %w[checks guards].each do |section|
+      keys = unknown_keys(data, DEFAULTS)
+      SECTIONS.each do |section|
         next unless data[section].is_a?(Hash)
 
-        unknown_keys(data[section], DEFAULTS[section], prefix: "#{section}.").each do |key|
-          warn %(agent_harness: unknown config key "#{key}" in #{PATH})
+        keys += unknown_keys(data[section], DEFAULTS[section], prefix: "#{section}.")
+        data[section].each do |name, entry|
+          next unless entry.is_a?(Hash) && DEFAULTS[section].key?(name.to_s)
+
+          keys += unknown_keys(entry, DEFAULTS[section][name.to_s], prefix: "#{section}.#{name}.")
         end
       end
+      keys.each { |key| warn %(agent_harness: unknown config key "#{key}" in #{PATH}) }
     end
     private_class_method :warn_unknown_keys
 
@@ -94,8 +101,44 @@ module RailsAgentHarness
     end
     private_class_method :unknown_keys
 
+    # Expected type of every known scalar setting, as [description, test].
+    VALUE_TYPES = {
+      "base_branch" => ["a non-empty string", ->(value) { value.is_a?(String) && !value.empty? }],
+      "max_output_lines" => ["a positive integer", ->(value) { value.is_a?(Integer) && value.positive? }],
+      "enabled" => ["true or false", ->(value) { value == true || value == false }],
+      "command" => ["a string or null", ->(value) { value.nil? || value.is_a?(String) }]
+    }.freeze
+    private_constant :VALUE_TYPES
+
+    # Type-checks every known scalar the file sets.
+    def self.validate_values(data, path)
+      check_types(data, DEFAULTS, path)
+      SECTIONS.each do |section|
+        data.fetch(section, {}).each do |name, entry|
+          next unless DEFAULTS[section].key?(name)
+
+          check_types(entry, DEFAULTS[section][name], path, prefix: "#{section}.#{name}.")
+        end
+      end
+    end
+    private_class_method :validate_values
+
+    def self.check_types(hash, known, path, prefix: "")
+      hash.each do |key, value|
+        next unless known.key?(key) && VALUE_TYPES.key?(key)
+
+        expected, valid = VALUE_TYPES[key]
+        next if valid.call(value)
+
+        raise ConfigurationError, "#{path}: \"#{prefix}#{key}\" must be #{expected}, got #{value.inspect}"
+      end
+    end
+    private_class_method :check_types
+
+    private_class_method :new
+
     def initialize(overrides = {})
-      @data = deep_merge(DEFAULTS, overrides)
+      @data = DeepFreeze.call(deep_merge(DEFAULTS, overrides))
     end
 
     def base_branch
@@ -107,7 +150,7 @@ module RailsAgentHarness
     end
 
     def check_enabled?(name)
-      section_entry("checks", name)["enabled"] ? true : false
+      section_entry("checks", name)["enabled"]
     end
 
     def check_command(name)
@@ -115,9 +158,10 @@ module RailsAgentHarness
     end
 
     def guard_enabled?(name)
-      section_entry("guards", name)["enabled"] ? true : false
+      section_entry("guards", name)["enabled"]
     end
 
+    # A mutable deep copy; changing it never affects this configuration.
     def to_h
       deep_dup(@data)
     end
@@ -151,6 +195,7 @@ module RailsAgentHarness
       case object
       when Hash then object.to_h { |key, value| [key.to_s, deep_dup(value)] }
       when Array then object.map { |value| deep_dup(value) }
+      when String then object.dup
       else object
       end
     end

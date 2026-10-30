@@ -23,6 +23,17 @@ RSpec.describe ".github/workflows/ci.yml" do
     expect(triggers).to have_key("pull_request")
   end
 
+  it "gives the workflow token read-only access" do
+    expect(workflow["permissions"]).to eq("contents" => "read")
+  end
+
+  it "cancels superseded pull request builds but not pushes to main" do
+    expect(workflow["concurrency"]).to eq(
+      "group" => "${{ github.workflow }}-${{ github.ref }}",
+      "cancel-in-progress" => "${{ github.event_name == 'pull_request' }}"
+    )
+  end
+
   it "lints with standardrb on the latest Ruby" do
     lint = workflow["jobs"]["lint"]
     setup = lint["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }

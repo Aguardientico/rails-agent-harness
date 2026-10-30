@@ -35,4 +35,13 @@ RSpec.describe "dummy app" do
     expect(schema).to include("version: #{latest.sub(/(\d{4})(\d{2})(\d{2})(\d{6})/, '\1_\2_\3_\4')}")
     expect(schema).to include('create_table "posts"', 'create_table "comments"')
   end
+
+  it "tags migrations and schema with the minimum supported Rails version" do
+    dummy = DummyAppHelper::DUMMY_APP
+
+    Dir[File.join(dummy, "db/migrate/*.rb")].each do |path|
+      expect(File.read(path)).to include("< ActiveRecord::Migration[8.1]")
+    end
+    expect(File.read(File.join(dummy, "db/schema.rb"))).to include("ActiveRecord::Schema[8.1].define")
+  end
 end

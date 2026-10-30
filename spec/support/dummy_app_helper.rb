@@ -8,7 +8,7 @@ module DummyAppHelper
   GEM_ROOT = File.expand_path("../..", __dir__)
   DUMMY_APP = File.join(GEM_ROOT, "spec", "dummy")
   GEMFILE = File.join(GEM_ROOT, "Gemfile")
-  EXCLUDED = %r{\A(log|tmp)(/|\z)|\.sqlite3}
+  EXCLUDED = %r{\A(log|tmp|storage)(/|\z)|\.sqlite3}
 
   # Copies spec/dummy into a fresh tmp dir that is a git repo on branch `main`
   # with a single commit, yields its path, and removes it afterwards.

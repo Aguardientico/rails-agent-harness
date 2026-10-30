@@ -11,7 +11,7 @@ RSpec.describe "rails_agent_harness.gemspec" do
     runtime = spec.runtime_dependencies
 
     expect(runtime.map(&:name)).to eq(["railties"])
-    expect(runtime.first.requirement).to eq(Gem::Requirement.new(">= 7.1", "< 9"))
+    expect(runtime.first.requirement).to eq(Gem::Requirement.new(">= 8.1", "< 9"))
   end
 
   it "packages only lib, the license, README and CHANGELOG" do
@@ -23,7 +23,7 @@ RSpec.describe "rails_agent_harness.gemspec" do
 
   it "declares the required metadata" do
     expect(spec.license).to eq("MIT")
-    expect(spec.required_ruby_version).to eq(Gem::Requirement.new(">= 3.2"))
+    expect(spec.required_ruby_version).to eq(Gem::Requirement.new(">= 3.3"))
     expect(spec.metadata).to include(
       "source_code_uri" => "https://github.com/Aguardientico/rails-agent-harness",
       "changelog_uri" => "https://github.com/Aguardientico/rails-agent-harness/blob/main/CHANGELOG.md",

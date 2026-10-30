@@ -11,10 +11,12 @@ bundle install
 bundle exec rspec
 bundle exec standardrb
 
-# Run against another Rails version (7.1, 7.2 or 8.0; default 8.0)
-RAILS_VERSION=7.1 bundle update
-RAILS_VERSION=7.1 bundle exec rspec
+# Run against Rails main (the default is the latest 8.1.x)
+RAILS_VERSION=main bundle update --all
+RAILS_VERSION=main bundle exec rspec
 ```
+
+Requires Ruby >= 3.3 and Rails >= 8.1. CI runs Ruby 3.3, 3.4 and 4.0 against Rails 8.1, plus an allowed-to-fail job against Rails `main`.
 
 ## License
 

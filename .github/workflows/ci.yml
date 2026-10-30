@@ -10,25 +10,31 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3"
+          ruby-version: "4.0"
           bundler-cache: true
       - run: bundle exec standardrb
 
   test:
-    name: Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
+    name: Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}${{ matrix.experimental && ' (allowed to fail)' || '' }}
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        ruby: ["3.2", "3.3"]
-        rails: ["7.1", "7.2", "8.0"]
+        ruby: ["3.3", "3.4", "4.0"]
+        rails: ["8.1"]
+        experimental: [false]
+        include:
+          - ruby: "4.0"
+            rails: main
+            experimental: true
     env:
       RAILS_VERSION: ${{ matrix.rails }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}

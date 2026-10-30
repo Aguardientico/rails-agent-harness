@@ -87,5 +87,9 @@ should be rare and explainable.
 - **Non-timestamped migrations fail rule 1.** Apps with
   `config.active_record.timestamped_migrations = false` (`001_create_posts.rb`) should
   disable `guards.migrations`.
+- **`--files` checks the selection as the whole change set.** `bin/agent-check --files
+  db/schema.rb` after a proper `g migration` + `db:migrate` reports "schema changed without
+  a migration", because the migration isn't in the selection. Pass the migration and the
+  schema together, or run `bin/agent-check` without `--files`.
 - **Files written outside Claude's file tools** (for example `cat > db/schema.rb` through
   `Bash`) aren't blocked by the hook; rule 4 still reports them in `bin/agent-check`.

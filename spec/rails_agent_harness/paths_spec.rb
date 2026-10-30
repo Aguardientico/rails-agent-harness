@@ -13,4 +13,17 @@ RSpec.describe RailsAgentHarness::Paths do
       expect(described_class.relative(File.join(root, "..x.rb"), root)).to eq("..x.rb")
     end
   end
+
+  it "matches files that don't exist yet under a symlinked root" do
+    Dir.mktmpdir do |dir|
+      real = File.join(dir, "real")
+      link = File.join(dir, "link")
+      FileUtils.mkdir_p(File.join(real, "db"))
+      File.symlink(real, link)
+
+      expect(described_class.relative(File.join(link, "db/migrate/new.rb"), link)).to eq("db/migrate/new.rb")
+      expect(described_class.relative(File.join(real, "db/migrate/new.rb"), link)).to eq("db/migrate/new.rb")
+      expect(described_class.relative(File.join(link, "db/migrate/new.rb"), real)).to eq("db/migrate/new.rb")
+    end
+  end
 end

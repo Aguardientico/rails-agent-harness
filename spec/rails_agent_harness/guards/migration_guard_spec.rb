@@ -70,6 +70,20 @@ RSpec.describe RailsAgentHarness::Guards::MigrationGuard do
       expect(call("Edit", "/elsewhere/db/schema.rb").allowed?).to be(true)
     end
 
+    it "blocks a new migration when the project root is a symlink, whichever path spelling is used" do
+      Dir.mktmpdir do |dir|
+        link = File.join(dir, "link")
+        File.symlink(root, link)
+        FileUtils.mkdir_p(File.join(root, "db/migrate"))
+        migration = "db/migrate/20990101000000_x.rb"
+
+        expect(call("Write", File.join(link, migration), guard: described_class.new(root: link, config: load_config(root))).allowed?).to be(false)
+        expect(call("Write", File.join(File.realpath(root), migration), guard: described_class.new(root: link, config: load_config(root))).allowed?).to be(false)
+        expect(call("Write", File.join(link, migration), guard: described_class.new(root: File.realpath(root), config: load_config(root))).allowed?).to be(false)
+        expect(call("Write", File.join(link, "db/new_dir/20990101000000_x.rb"), guard: described_class.new(root: link, config: load_config(root))).allowed?).to be(true)
+      end
+    end
+
     it "blocks paths in any case (case-insensitive filesystems)" do
       expect(call("Edit", File.join(root, "db/Schema.rb")).allowed?).to be(false)
       expect(call("Write", File.join(root, "DB/migrate/20990101000000_x.rb")).allowed?).to be(false)

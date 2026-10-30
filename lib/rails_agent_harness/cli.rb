@@ -52,8 +52,15 @@ module RailsAgentHarness
       config = Configuration.load(root)
       if options[:files]
         files = options[:files]
-        # With --base, "added" (for the migrations check) is worked out against that branch.
-        added = ChangedFiles.new(root, base_branch: options[:base]).added if options[:base]
+        # With --base, "added" (for the migrations check) is worked out against that branch;
+        # outside a git repository the check falls back on its own.
+        if options[:base]
+          added = begin
+            ChangedFiles.new(root, base_branch: options[:base]).added
+          rescue Error
+            nil
+          end
+        end
       else
         changes = ChangedFiles.new(root, base_branch: options[:base] || config.base_branch)
         files = changes.list

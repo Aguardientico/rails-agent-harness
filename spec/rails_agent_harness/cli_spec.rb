@@ -89,6 +89,16 @@ RSpec.describe RailsAgentHarness::CLI do
       expect(stdout.string).to include("db/migrate/add_x.rb: does not look generated")
     end
 
+    it "falls back gracefully when --base doesn't resolve with --files" do
+      use_checks(RailsAgentHarness::Checks::Migrations)
+      touch(root, "db/migrate/20261030120000_add_x.rb", "class AddX < ActiveRecord::Migration[8.1]\nend\n")
+      allow(RailsAgentHarness::ChangedFiles).to receive(:new).and_raise(RailsAgentHarness::Error, "not a git repository")
+
+      expect(run_cli("--files", "db/migrate/20261030120000_add_x.rb", "--base", "nope")).to eq(1)
+      expect(stdout.string).to include("migration added but db/schema.rb not updated")
+      expect(stderr.string).to be_empty
+    end
+
     it "diffs against --base" do
       git(root, "checkout", "-q", "-b", "feature")
       touch(root, "app/models/comment.rb", "x\n")

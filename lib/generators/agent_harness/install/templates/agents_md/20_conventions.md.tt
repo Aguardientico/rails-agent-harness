@@ -21,7 +21,7 @@
 <% if profile.database == :postgresql -%>
 - PostgreSQL: prefer `jsonb` over `json`, and add indexes concurrently on large tables (`algorithm: :concurrently` with `disable_ddl_transaction!`).
 <% elsif profile.database == :mysql -%>
-- MySQL: mind index length limits on long string columns (`limit:` on the index), and use `utf8mb4`.
+- MySQL: mind index length limits on long string columns (`add_index :posts, :title, length: 191`), and use `utf8mb4`.
 <% elsif profile.database == :sqlite -%>
 - SQLite: it allows a single writer at a time; keep write transactions short.
 <% end -%>

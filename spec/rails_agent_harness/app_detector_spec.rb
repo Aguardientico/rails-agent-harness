@@ -238,9 +238,21 @@ RSpec.describe RailsAgentHarness::AppDetector do
     end
 
     it "is :sql when config/application.rb sets it" do
-      write("config/application.rb", "config.active_record.schema_format = :sql\n")
+      write("config/application.rb", "    config.active_record.schema_format = :sql\n")
 
       expect(profile.schema_format).to eq(:sql)
+    end
+
+    it "accepts the string form in config/application.rb" do
+      write("config/application.rb", "config.active_record.schema_format = \"sql\"\n")
+
+      expect(profile.schema_format).to eq(:sql)
+    end
+
+    it "ignores a commented-out setting in config/application.rb" do
+      write("config/application.rb", "    # config.active_record.schema_format = :sql\n")
+
+      expect(profile.schema_format).to eq(:ruby)
     end
 
     it "is :sql when the development database sets it" do

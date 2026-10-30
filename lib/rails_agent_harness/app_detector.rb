@@ -31,15 +31,17 @@ module RailsAgentHarness
   #   (pg, mysql2/trilogy, sqlite3); else :unknown.
   # - rubocop?: lockfile has rubocop or .rubocop.yml exists. standard?: lockfile has standard.
   #   brakeman?: lockfile has brakeman or bin/brakeman exists.
-  # - schema_format: :sql if db/structure.sql exists, config/application.rb sets
-  #   `schema_format = :sql`, or the development database entry sets `schema_format: sql`;
-  #   else :ruby.
+  # - schema_format: :sql if db/structure.sql exists, an uncommented line in
+  #   config/application.rb sets `schema_format = :sql` (or "sql"/'sql'), or the development
+  #   database entry sets `schema_format: sql`; else :ruby.
   class AppDetector
     ADAPTERS = {
       "postgresql" => :postgresql, "postgis" => :postgresql,
       "mysql2" => :mysql, "trilogy" => :mysql,
       "sqlite3" => :sqlite
     }.freeze
+    # `config.active_record.schema_format = :sql` (or "sql"/'sql') on a line that isn't a comment.
+    SQL_SCHEMA_FORMAT = /^[^#\n]*schema_format\s*=\s*(:sql|"sql"|'sql')/
     DATABASE_GEMS = {"pg" => :postgresql, "mysql2" => :mysql, "trilogy" => :mysql, "sqlite3" => :sqlite}.freeze
 
     def initialize(root)
@@ -87,7 +89,7 @@ module RailsAgentHarness
 
     def schema_format
       return :sql if file?("db/structure.sql")
-      return :sql if file?("config/application.rb") && File.read(path("config/application.rb")).match?(/schema_format\s*=\s*:sql/)
+      return :sql if file?("config/application.rb") && File.read(path("config/application.rb")).match?(SQL_SCHEMA_FORMAT)
       return :sql if development_database_config&.fetch("schema_format", nil).to_s == "sql"
 
       :ruby

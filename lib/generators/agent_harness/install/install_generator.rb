@@ -16,6 +16,10 @@ module AgentHarness
 
       desc "Writes AGENTS.md, CLAUDE.md and config/agent_harness.yml tuned to this app's stack."
 
+      # Exit non-zero when a step reports a problem (see #print_summary), like Rails' own
+      # migration generator.
+      def self.exit_on_failure? = true
+
       def create_config_file
         if File.exist?(File.join(destination_root, RailsAgentHarness::Configuration::PATH)) && !options[:force]
           say_status :exists, "#{RailsAgentHarness::Configuration::PATH} (skipped; use --force to overwrite)", :blue
@@ -29,6 +33,10 @@ module AgentHarness
       end
 
       def create_claude_md
+        if same_file?("CLAUDE.md", "AGENTS.md")
+          return say_status(:skip, "CLAUDE.md (same file as AGENTS.md, which already has the instructions)", :yellow)
+        end
+
         upsert_marked_block "CLAUDE.md", <<~MARKDOWN
           @AGENTS.md
 
@@ -50,6 +58,10 @@ module AgentHarness
         say "Next steps:"
         say "  1. Review AGENTS.md and config/agent_harness.yml."
         say "  2. Commit AGENTS.md, CLAUDE.md and config/agent_harness.yml."
+        return if problems.empty?
+
+        raise Thor::Error, "Some files were left unchanged and need fixing by hand:\n" +
+          problems.map { |problem| "  - #{problem}" }.join("\n")
       end
 
       private
@@ -67,9 +79,21 @@ module AgentHarness
         end.join("\n\n")
       end
 
+      # Problems reported by steps; #print_summary turns them into a non-zero exit.
+      def problems
+        @problems ||= []
+      end
+
+      def same_file?(path, other)
+        File.exist?(File.join(destination_root, path)) && File.exist?(File.join(destination_root, other)) &&
+          File.identical?(File.join(destination_root, path), File.join(destination_root, other))
+      end
+
       # Writes `content` between BEGIN/END markers in `path`: creates the file, appends the block
-      # to a file without markers (keeping the user's content), or replaces only the existing
-      # block. Unchanged content is left alone, so re-running is idempotent.
+      # to a file without markers (keeping the user's content), or replaces the existing block
+      # (extra blocks, if any, are removed). Unchanged content is left alone, so re-running is
+      # idempotent. A BEGIN marker without an END marker leaves the file untouched and is
+      # reported as a problem.
       def upsert_marked_block(path, content)
         block = "#{BEGIN_MARKER}\n#{content.strip}\n#{END_MARKER}\n"
         full_path = File.join(destination_root, path)
@@ -79,9 +103,11 @@ module AgentHarness
         updated =
           if existing.include?(BEGIN_MARKER)
             unless existing.match?(MARKED_BLOCK)
+              problems << "#{path}: #{BEGIN_MARKER} without #{END_MARKER}"
               return say_status(:error, "#{path} has #{BEGIN_MARKER} but no #{END_MARKER}; fix it and re-run", :red)
             end
-            existing.sub(MARKED_BLOCK) { block }
+            blocks = 0
+            existing.gsub(MARKED_BLOCK) { ((blocks += 1) == 1) ? block : "" }
           elsif existing.strip.empty?
             block
           else
@@ -91,7 +117,7 @@ module AgentHarness
         if updated == existing
           say_status :identical, path, :blue
         else
-          create_file path, updated, force: true
+          create_file path, updated, force: !options[:skip]
         end
       end
 

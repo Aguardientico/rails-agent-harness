@@ -22,15 +22,26 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
     File.read(File.join(root, relative))
   end
 
-  # Runs the generator quietly and returns what it printed.
+  attr_reader :exit_status, :errors
+
+  # Runs the generator quietly and returns what it printed on stdout. #exit_status is the
+  # status it exited with (0 when it didn't call exit) and #errors what it printed on stderr.
   def run_generator(args = [])
     output = StringIO.new
-    original = $stdout
+    error_output = StringIO.new
+    original = [$stdout, $stderr]
     $stdout = output
-    described_class.start(args, destination_root: root)
+    $stderr = error_output
+    @exit_status = 0
+    begin
+      described_class.start(args, destination_root: root)
+    rescue SystemExit => e
+      @exit_status = e.status
+    end
+    @errors = error_output.string
     output.string
   ensure
-    $stdout = original
+    $stdout, $stderr = original
   end
 
   def harness_block(relative)
@@ -166,13 +177,63 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       expect(output).not_to include("conflict")
     end
 
-    it "leaves a file with a BEGIN marker but no END marker untouched" do
+    it "leaves a file with a BEGIN marker but no END marker untouched, writes the rest and exits non-zero" do
       write("AGENTS.md", "<!-- BEGIN rails_agent_harness -->\nhalf a block\n")
 
       output = run_generator
 
       expect(read("AGENTS.md")).to eq("<!-- BEGIN rails_agent_harness -->\nhalf a block\n")
       expect(output).to include("error  AGENTS.md has <!-- BEGIN rails_agent_harness --> but no")
+      expect(read("CLAUDE.md")).to include("@AGENTS.md")
+      expect(File).to exist(File.join(root, "config/agent_harness.yml"))
+      expect(exit_status).to eq(1)
+      expect(errors).to include("need fixing by hand", "AGENTS.md: <!-- BEGIN rails_agent_harness --> without <!-- END rails_agent_harness -->")
+    end
+
+    it "exits zero when nothing needs fixing" do
+      run_generator
+
+      expect(exit_status).to eq(0)
+      expect(errors).to be_empty
+    end
+
+    it "collapses several marked blocks into one" do
+      write("AGENTS.md", <<~MARKDOWN)
+        <!-- BEGIN rails_agent_harness -->
+        old one
+        <!-- END rails_agent_harness -->
+        Mine.
+        <!-- BEGIN rails_agent_harness -->
+        old two
+        <!-- END rails_agent_harness -->
+      MARKDOWN
+
+      run_generator
+
+      agents = read("AGENTS.md")
+      expect(agents.scan("<!-- BEGIN rails_agent_harness -->").size).to eq(1)
+      expect(agents).to include("# Agent instructions", "Mine.")
+      expect(agents).not_to include("old one", "old two")
+    end
+
+    it "keeps a changed block with --skip" do
+      write("AGENTS.md", "<!-- BEGIN rails_agent_harness -->\nstale\n<!-- END rails_agent_harness -->\n")
+
+      run_generator(["--skip"])
+
+      expect(read("AGENTS.md")).to include("stale")
+    end
+
+    it "doesn't overwrite AGENTS.md with a self-import when CLAUDE.md links to it" do
+      write("AGENTS.md", "Shared.\n")
+      File.symlink("AGENTS.md", File.join(root, "CLAUDE.md"))
+
+      output = run_generator
+
+      expect(File.symlink?(File.join(root, "CLAUDE.md"))).to be(true)
+      expect(read("AGENTS.md")).to include("Shared.", "# Agent instructions")
+      expect(read("AGENTS.md")).not_to include("@AGENTS.md")
+      expect(output).to include("skip  CLAUDE.md (same file as AGENTS.md")
     end
   end
 
@@ -234,7 +295,7 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
 
       expect(read("AGENTS.md")).to include(
         "- Rails: 8.1.4", "- Tests: none detected", "- Database: PostgreSQL",
-        "- Linters: RuboCop, Standard", "- Schema format: SQL (`db/structure.sql`)",
+        "- Linter: Standard", "- Security scanner: none detected", "- Schema format: SQL (`db/structure.sql`)",
         "Never edit `db/structure.sql` by hand", "PostgreSQL: prefer `jsonb`"
       )
     end

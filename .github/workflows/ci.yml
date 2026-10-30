@@ -73,3 +73,5 @@ jobs:
           bundler-cache: true
       - run: gem build rails_agent_harness.gemspec
       - run: tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz
+      - name: Only lib/**, LICENSE.txt, README.md and CHANGELOG.md are packaged
+        run: "! tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz | grep -vE '^(lib/|LICENSE.txt$|README.md$|CHANGELOG.md$)'"

@@ -71,6 +71,7 @@ RSpec.describe ".github/workflows/ci.yml" do
     runs = workflow["jobs"]["build"]["steps"].map { |step| step["run"] }
 
     expect(runs).to include("gem build rails_agent_harness.gemspec", "tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz")
+    expect(runs.last).to include("grep -vE '^(lib/|LICENSE.txt$|README.md$|CHANGELOG.md$)'")
   end
 
   it "only tests Ruby versions the gemspec allows" do

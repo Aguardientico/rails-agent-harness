@@ -55,6 +55,8 @@ $ bin/agent-check
 agent-check: PASS (migrations, rubocop, brakeman, tests skipped: disabled in config/agent_harness.yml) - 5 files checked in Xs
 ```
 
+The bad change also renders `post.comments.count` in a loop in `PostsController#index`. That N+1 query isn't something static checks catch; the `rails-review` skill (or the review section of `AGENTS.md`) flags it and suggests `includes(:comments)` with `size`.
+
 Reproduce it with `demo/run` (see [Development](#development)).
 
 ## Install
@@ -97,7 +99,7 @@ Options:
 
 Ask Claude to "review my changes" or run `/rails-review` to use the review skill.
 
-**Codex and Cursor** read `AGENTS.md`, which tells them to run `bin/agent-check` before saying a task is done and to fix everything it reports, and contains the same review checklist. They have no hooks, so the migrations check in `bin/agent-check` catches hand-written migrations after the fact.
+**Codex and Cursor** read `AGENTS.md`, which tells them to run `bin/agent-check` before saying a task is done and to fix everything it reports, and contains the same review checklist. The generator only installs hooks for Claude Code; for Codex and Cursor, the migrations check in `bin/agent-check` catches hand-written migrations after the fact.
 
 ## `bin/agent-check`
 

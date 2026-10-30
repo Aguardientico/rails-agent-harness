@@ -75,9 +75,15 @@ class Demo
 
       source = File.join(DUMMY, relative)
       target = File.join(@app, relative)
-      File.directory?(source) ? FileUtils.mkdir_p(target) : FileUtils.mkdir_p(File.dirname(target)) && FileUtils.cp(source, target, preserve: true)
+      if File.directory?(source)
+        FileUtils.mkdir_p(target)
+      else
+        FileUtils.mkdir_p(File.dirname(target))
+        FileUtils.cp(source, target, preserve: true)
+      end
     end
     apply("base")
+    pin_load_defaults
     # The app runs on the gem's bundle (BUNDLE_GEMFILE); a lockfile lets Brakeman and the
     # install generator see its Rails version and gems, as in a real app.
     lockfile = File.join(REPO, "Gemfile.lock")
@@ -87,6 +93,17 @@ class Demo
     quiet("git", "init", "-q", "-b", "main")
     quiet(*GIT, "add", "-A")
     quiet(*GIT, "commit", "-q", "-m", "Demo app")
+  end
+
+  # spec/dummy computes `config.load_defaults` from the running Rails; a real app (and
+  # Brakeman, which reads it statically) has a literal version.
+  def pin_load_defaults
+    path = File.join(@app, "config/application.rb")
+    source = File.read(path)
+    pinned = source.sub(/config\.load_defaults .+$/, "config.load_defaults 8.1")
+    raise Failure, "config.load_defaults not found in #{path}" if pinned == source
+
+    File.write(path, pinned)
   end
 
   def apply(name)

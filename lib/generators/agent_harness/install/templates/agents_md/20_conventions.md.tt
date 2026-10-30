@@ -1,0 +1,27 @@
+## Rails conventions
+
+- Follow the patterns already in this codebase before adding new abstractions or gems.
+- Use generators for new code (`bin/rails g model`, `bin/rails g controller`, `bin/rails g migration`) instead of writing boilerplate by hand.
+- Never edit `<%= (profile.schema_format == :sql) ? "db/structure.sql" : "db/schema.rb" %>` by hand; change the schema with a migration and run `bin/rails db:migrate`.
+- Keep side effects explicit: prefer a service object or PORO over `after_save` callback chains, and use `after_commit` for external side effects (jobs, emails, API calls).
+- Use strong parameters for every controller write: `params.expect(post: [:title, :body])`. Never use `permit!`.
+- Avoid N+1 queries: use `includes`/`preload`, and consider `strict_loading` on associations that must always be preloaded.
+- Index every foreign key, and back `validates :x, uniqueness: true` with a unique database index.
+- Wrap writes that touch several records in `ActiveRecord::Base.transaction`.
+- Never interpolate values into SQL strings; use bound parameters (`where(title: value)` or `where("title = ?", value)`).
+- Read secrets from `Rails.application.credentials` (or ENV); never hard-code them.
+<% if profile.test_framework == :rspec -%>
+- Add or update a spec under `spec/` for every behavior change.
+<% elsif profile.test_framework == :minitest -%>
+- Add or update a test under `test/` for every behavior change.
+<% else -%>
+- Add or update a test for every behavior change.
+<% end -%>
+- Keep changes minimal and focused; don't reformat unrelated code.
+<% if profile.database == :postgresql -%>
+- PostgreSQL: prefer `jsonb` over `json`, and add indexes concurrently on large tables (`algorithm: :concurrently` with `disable_ddl_transaction!`).
+<% elsif profile.database == :mysql -%>
+- MySQL: mind index length limits on long string columns (`add_index :posts, :title, length: 191`), and use `utf8mb4`.
+<% elsif profile.database == :sqlite -%>
+- SQLite: it allows a single writer at a time; keep write transactions short.
+<% end -%>

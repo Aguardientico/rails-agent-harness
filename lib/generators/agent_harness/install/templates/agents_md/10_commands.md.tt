@@ -1,0 +1,18 @@
+## Commands
+
+- Setup: `<%= app_file?("bin/setup") ? "bin/setup" : "bundle install && bin/rails db:prepare" %>`
+<% if profile.test_framework != :none -%>
+- Run all tests: `<%= test_command %>`
+- Run one test: `<%= (profile.test_framework == :rspec) ? "bundle exec rspec path/to/file_spec.rb:LINE" : "bin/rails test path/to/file_test.rb:LINE" %>`
+<% end -%>
+<% if lint_command -%>
+- Lint: `<%= lint_command %>`
+<% end -%>
+<% if security_command -%>
+- Security scan: `<%= security_command %>`
+<% end -%>
+<% if app_file?("bin/ci") -%>
+- Full local CI (as configured in `config/ci.rb`): `bin/ci`
+<% end -%>
+- Console: `bin/rails console`
+- Routes: `bin/rails routes -g NAME`

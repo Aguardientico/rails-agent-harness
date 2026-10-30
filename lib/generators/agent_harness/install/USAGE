@@ -1,0 +1,16 @@
+Description:
+    Detects this app's stack (Rails version, test framework, database, linters,
+    schema format) and writes:
+
+      config/agent_harness.yml  settings for rails_agent_harness (kept on re-runs
+                                unless --force)
+      AGENTS.md                 agent instructions tuned to this app
+      CLAUDE.md                 imports AGENTS.md for Claude Code
+
+    AGENTS.md and CLAUDE.md get a block between
+    <!-- BEGIN rails_agent_harness --> and <!-- END rails_agent_harness -->
+    markers. Existing content outside the markers is preserved, and re-running
+    the generator only replaces the block.
+
+Example:
+    bin/rails generate agent_harness:install

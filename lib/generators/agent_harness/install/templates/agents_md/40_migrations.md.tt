@@ -1,0 +1,11 @@
+## Database changes
+
+- Always generate migrations: `bin/rails g migration AddPublishedToPosts published:boolean` (or `bin/rails g model ...`), then edit the generated file. Never create a migration file by hand.
+- Run `bin/rails db:migrate` after adding or changing a migration. Rails keeps the test database in sync (`maintain_test_schema`); run `bin/rails db:test:prepare` only if tests report pending migrations.
+- Never edit `<%= schema_file %>` by hand: it is written by `bin/rails db:migrate`. Commit each migration together with the schema change it produces.
+- Keep migrations reversible: use `change` with reversible methods, or `up`/`down`.
+- Add an index for every new foreign key (`t.references`/`add_reference` add one by default).
+<% if profile.database == :postgresql -%>
+- On large tables, add indexes without locking writes: `add_index ..., algorithm: :concurrently` together with `disable_ddl_transaction!`.
+<% end -%>
+- `bin/agent-check` enforces this (migrations check)<%= options[:skip_claude_hooks] ? "" : ", and in Claude Code a hook blocks writing a new migration file or editing the schema by hand" %>.

@@ -45,11 +45,12 @@ module RailsAgentHarness
       end
     end
 
-    def initialize(root:, config:, profile:, files:, checks: Checks.registry, runner: CommandRunner.new(root))
+    def initialize(root:, config:, profile:, files:, added: nil, checks: Checks.registry, runner: CommandRunner.new(root))
       @root = root
       @config = config
       @profile = profile
       @files = files
+      @added = added
       @checks = checks
       @runner = runner
     end
@@ -57,7 +58,7 @@ module RailsAgentHarness
     def call
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       results = @checks.map do |check|
-        check.new(root: @root, config: @config, profile: @profile, files: @files, runner: @runner).call
+        check.new(root: @root, config: @config, profile: @profile, files: @files, runner: @runner, added: @added).call
       end
       Report.new(results: results, files: @files, duration: Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
     end

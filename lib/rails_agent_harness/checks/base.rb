@@ -5,7 +5,8 @@ require "shellwords"
 module RailsAgentHarness
   module Checks
     # A check gets the project root, the loaded Configuration, the AppProfile, the files to
-    # look at (root-relative) and a CommandRunner, and returns a CheckResult from #call.
+    # look at (root-relative), a CommandRunner and, when known, the files added since the merge
+    # base (`added`, nil otherwise), and returns a CheckResult from #call.
     class Base
       class << self
         # The check's name in output, `--only` and config/agent_harness.yml. (Not `name`,
@@ -15,14 +16,15 @@ module RailsAgentHarness
         end
       end
 
-      attr_reader :root, :config, :profile, :files, :runner
+      attr_reader :root, :config, :profile, :files, :runner, :added
 
-      def initialize(root:, config:, profile:, files:, runner:)
+      def initialize(root:, config:, profile:, files:, runner:, added: nil)
         @root = root.to_s
         @config = config
         @profile = profile
         @files = files
         @runner = runner
+        @added = added
       end
 
       def name = self.class.check_name

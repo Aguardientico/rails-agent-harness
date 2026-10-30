@@ -51,7 +51,7 @@ module RailsAgentHarness
       end
 
       validate_sections(data, path)
-      warn_unknown_keys(data)
+      drop_unknown_keys(data)
       validate_values(data, path)
       data
     rescue Psych::Exception => e
@@ -70,9 +70,9 @@ module RailsAgentHarness
         unless data[section].is_a?(Hash)
           raise ConfigurationError, "#{path}: \"#{section}\" must be a mapping"
         end
-        data[section].delete_if { |name, entry| entry.nil? && DEFAULTS[section].key?(name.to_s) }
+        data[section].delete_if { |name, entry| entry.nil? && DEFAULTS[section].key?(name) }
         data[section].each do |name, entry|
-          next if entry.is_a?(Hash) || !DEFAULTS[section].key?(name.to_s)
+          next if entry.is_a?(Hash) || !DEFAULTS[section].key?(name)
 
           raise ConfigurationError, "#{path}: \"#{section}.#{name}\" must be a mapping"
         end
@@ -80,26 +80,28 @@ module RailsAgentHarness
     end
     private_class_method :validate_sections
 
-    def self.warn_unknown_keys(data)
-      keys = unknown_keys(data, DEFAULTS)
+    # Warns once per unknown key, then removes it so callers (and #to_h) only
+    # ever see the documented schema.
+    def self.drop_unknown_keys(data)
+      keys = drop_unknown(data, DEFAULTS)
       SECTIONS.each do |section|
-        next unless data[section].is_a?(Hash)
+        next unless data.key?(section)
 
-        keys += unknown_keys(data[section], DEFAULTS[section], prefix: "#{section}.")
+        keys += drop_unknown(data[section], DEFAULTS[section], prefix: "#{section}.")
         data[section].each do |name, entry|
-          next unless entry.is_a?(Hash) && DEFAULTS[section].key?(name.to_s)
-
-          keys += unknown_keys(entry, DEFAULTS[section][name.to_s], prefix: "#{section}.#{name}.")
+          keys += drop_unknown(entry, DEFAULTS[section][name], prefix: "#{section}.#{name}.")
         end
       end
       keys.each { |key| warn %(agent_harness: unknown config key "#{key}" in #{PATH}) }
     end
-    private_class_method :warn_unknown_keys
+    private_class_method :drop_unknown_keys
 
-    def self.unknown_keys(hash, known, prefix: "")
-      hash.keys.map(&:to_s).reject { |key| known.key?(key) }.map { |key| "#{prefix}#{key}" }
+    def self.drop_unknown(hash, known, prefix: "")
+      unknown = hash.keys.reject { |key| known.key?(key) }
+      unknown.each { |key| hash.delete(key) }
+      unknown.map { |key| "#{prefix}#{key}" }
     end
-    private_class_method :unknown_keys
+    private_class_method :drop_unknown
 
     # Expected type of every known scalar setting, as [description, test].
     VALUE_TYPES = {
@@ -110,22 +112,20 @@ module RailsAgentHarness
     }.freeze
     private_constant :VALUE_TYPES
 
-    # Type-checks every known scalar the file sets.
+    # Type-checks every scalar the file sets (unknown keys are already gone).
     def self.validate_values(data, path)
-      check_types(data, DEFAULTS, path)
+      check_types(data, path)
       SECTIONS.each do |section|
         data.fetch(section, {}).each do |name, entry|
-          next unless DEFAULTS[section].key?(name)
-
-          check_types(entry, DEFAULTS[section][name], path, prefix: "#{section}.#{name}.")
+          check_types(entry, path, prefix: "#{section}.#{name}.")
         end
       end
     end
     private_class_method :validate_values
 
-    def self.check_types(hash, known, path, prefix: "")
+    def self.check_types(hash, path, prefix: "")
       hash.each do |key, value|
-        next unless known.key?(key) && VALUE_TYPES.key?(key)
+        next unless VALUE_TYPES.key?(key)
 
         expected, valid = VALUE_TYPES[key]
         next if valid.call(value)

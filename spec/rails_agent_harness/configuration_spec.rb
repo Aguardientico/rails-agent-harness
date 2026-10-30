@@ -315,6 +315,28 @@ RSpec.describe RailsAgentHarness::Configuration do
         expect(config.guard_enabled?(:schema)).to be(true)
       end
 
+      it "drops unknown keys so #to_h only contains the documented schema" do
+        write_config(<<~YAML)
+          colour: blue
+          checks:
+            rubcop:
+            foo:
+              enabled: true
+            rubocop:
+              comand: bin/rubocop
+              enabled: false
+          guards:
+            bar: 1
+        YAML
+        config = nil
+        expect { config = described_class.load(root) }.to output.to_stderr
+
+        expected = expected_defaults.merge(
+          "checks" => expected_defaults["checks"].merge("rubocop" => {"enabled" => false, "command" => nil})
+        )
+        expect(config.to_h).to eq(expected)
+      end
+
       it "does not type-check unknown keys" do
         write_config("checks:\n  foo:\n    enabled: maybe\n")
 

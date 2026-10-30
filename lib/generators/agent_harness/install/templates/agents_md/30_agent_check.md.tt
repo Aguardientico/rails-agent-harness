@@ -1,0 +1,21 @@
+## Verify your work
+
+Run `bin/agent-check` before you say a task is done, and fix everything it reports. This is mandatory for Codex and Cursor; Claude Code also runs it automatically through hooks in `.claude/settings.json` (RuboCop after each file edit, the full check before it stops).
+
+- It checks the files changed since the merge base with `<%= base_branch %>` (committed, staged, unstaged and untracked): RuboCop on changed Ruby files, Brakeman (High/Medium confidence warnings), and the tests mapped to the changed files.
+- Exit status `0` means nothing failed; `1` means a check failed (fix it and run again).
+- `bin/agent-check --only rubocop,tests` runs some checks; `--files app/models/post.rb` checks specific files; `--verbose` shows untruncated output.
+- Turn checks on or off, or set their commands, in `config/agent_harness.yml`.
+
+Tests mapped to changed files:
+
+| Changed file | RSpec | Minitest |
+|---|---|---|
+| `spec/**/*_spec.rb` / `test/**/*_test.rb` | itself | itself |
+| `app/<dir>/<path>.rb` | `spec/<dir>/<path>_spec.rb` | `test/<dir>/<path>_test.rb` |
+| `app/controllers/<path>_controller.rb` | also `spec/requests/<path>_spec.rb` | also `test/integration/<path>_test.rb` |
+| `app/views/<resource>/**` | `spec/requests/<resource>_spec.rb` | `test/controllers/<resource>_controller_test.rb` |
+| `lib/<path>.rb` | `spec/lib/<path>_spec.rb` | `test/lib/<path>_test.rb` |
+| anything else (migrations, schema, routes, config) | none | none |
+
+Only test files that exist are run. When no test is mapped, run the relevant tests yourself.

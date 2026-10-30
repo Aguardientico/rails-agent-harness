@@ -183,11 +183,22 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       output = run_generator
 
       expect(read("AGENTS.md")).to eq("<!-- BEGIN rails_agent_harness -->\nhalf a block\n")
-      expect(output).to include("error  AGENTS.md has <!-- BEGIN rails_agent_harness --> but no")
+      expect(output).to include("error  AGENTS.md has unmatched <!-- BEGIN rails_agent_harness -->")
+      expect(output).not_to include("Next steps:")
       expect(read("CLAUDE.md")).to include("@AGENTS.md")
       expect(File).to exist(File.join(root, "config/agent_harness.yml"))
       expect(exit_status).to eq(1)
-      expect(errors).to include("need fixing by hand", "AGENTS.md: <!-- BEGIN rails_agent_harness --> without <!-- END rails_agent_harness -->")
+      expect(errors).to include("need fixing by hand", "AGENTS.md: unmatched <!-- BEGIN rails_agent_harness --> / <!-- END rails_agent_harness --> markers")
+    end
+
+    it "reports a stray BEGIN marker after a complete block" do
+      stray = "<!-- BEGIN rails_agent_harness -->\nold\n<!-- END rails_agent_harness -->\n<!-- BEGIN rails_agent_harness -->\n"
+      write("AGENTS.md", stray)
+
+      run_generator
+
+      expect(read("AGENTS.md")).to eq(stray)
+      expect(exit_status).to eq(1)
     end
 
     it "exits zero when nothing needs fixing" do

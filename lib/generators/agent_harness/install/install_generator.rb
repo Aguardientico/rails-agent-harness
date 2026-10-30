@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "erb"
+require "json"
 require "rails/generators"
 require "rails_agent_harness"
 require "rails_agent_harness/app_detector"
@@ -12,9 +13,25 @@ module AgentHarness
       END_MARKER = "<!-- END rails_agent_harness -->"
       MARKED_BLOCK = /#{Regexp.escape(BEGIN_MARKER)}.*?#{Regexp.escape(END_MARKER)}\n?/m
 
+      # Our Claude Code hook entries, by event. The command identifies an entry when merging.
+      CLAUDE_HOOKS = {
+        "PostToolUse" => {
+          "matcher" => "Edit|Write",
+          "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use", "timeout" => 60}]
+        },
+        "Stop" => {
+          "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook stop", "timeout" => 300}]
+        }
+      }.freeze
+      CLAUDE_SETTINGS_SCHEMA = "https://json.schemastore.org/claude-code-settings.json"
+
       source_root File.expand_path("templates", __dir__)
 
-      desc "Writes AGENTS.md, CLAUDE.md and config/agent_harness.yml tuned to this app's stack."
+      desc "Writes AGENTS.md, CLAUDE.md, config/agent_harness.yml and bin/agent-check tuned to this " \
+        "app's stack, and wires bin/agent-check into Claude Code hooks."
+
+      class_option :skip_claude_hooks, type: :boolean, default: false,
+        desc: "Don't add bin/agent-check hooks to .claude/settings.json"
 
       # Exit non-zero when a step reports a problem (see #print_summary), like Rails' own
       # migration generator.
@@ -44,6 +61,17 @@ module AgentHarness
         MARKDOWN
       end
 
+      def create_agent_check_binstub
+        template "bin/agent-check.tt", "bin/agent-check"
+        chmod "bin/agent-check", 0o755
+      end
+
+      def configure_claude_hooks
+        return if options[:skip_claude_hooks]
+
+        merge_claude_hooks(CLAUDE_HOOKS)
+      end
+
       def print_summary
         say ""
         say "Detected stack:"
@@ -55,13 +83,14 @@ module AgentHarness
         say "  Brakeman:       #{profile.brakeman? ? "yes" : "no"}"
         say "  Schema format:  #{profile.schema_format}"
         say ""
+        if problems.any?
+          raise Thor::Error, "Some files were left unchanged and need fixing by hand:\n" +
+            problems.map { |problem| "  - #{problem}" }.join("\n")
+        end
+
         say "Next steps:"
         say "  1. Review AGENTS.md and config/agent_harness.yml."
         say "  2. Commit AGENTS.md, CLAUDE.md and config/agent_harness.yml."
-        return if problems.empty?
-
-        raise Thor::Error, "Some files were left unchanged and need fixing by hand:\n" +
-          problems.map { |problem| "  - #{problem}" }.join("\n")
       end
 
       private
@@ -92,8 +121,8 @@ module AgentHarness
       # Writes `content` between BEGIN/END markers in `path`: creates the file, appends the block
       # to a file without markers (keeping the user's content), or replaces the existing block
       # (extra blocks, if any, are removed). Unchanged content is left alone, so re-running is
-      # idempotent. A BEGIN marker without an END marker leaves the file untouched and is
-      # reported as a problem.
+      # idempotent. Unmatched BEGIN/END markers leave the file untouched and are reported as a
+      # problem.
       def upsert_marked_block(path, content)
         block = "#{BEGIN_MARKER}\n#{content.strip}\n#{END_MARKER}\n"
         full_path = File.join(destination_root, path)
@@ -102,9 +131,9 @@ module AgentHarness
         existing = File.read(full_path)
         updated =
           if existing.include?(BEGIN_MARKER)
-            unless existing.match?(MARKED_BLOCK)
-              problems << "#{path}: #{BEGIN_MARKER} without #{END_MARKER}"
-              return say_status(:error, "#{path} has #{BEGIN_MARKER} but no #{END_MARKER}; fix it and re-run", :red)
+            unless existing.scan(BEGIN_MARKER).size == existing.scan(END_MARKER).size && existing.match?(MARKED_BLOCK)
+              problems << "#{path}: unmatched #{BEGIN_MARKER} / #{END_MARKER} markers"
+              return say_status(:error, "#{path} has unmatched #{BEGIN_MARKER} / #{END_MARKER} markers; fix them and re-run", :red)
             end
             blocks = 0
             existing.gsub(MARKED_BLOCK) { ((blocks += 1) == 1) ? block : "" }
@@ -119,6 +148,46 @@ module AgentHarness
         else
           create_file path, updated, force: !options[:skip]
         end
+      end
+
+      # Adds each event's entry (event => hook group) under `hooks` in .claude/settings.json,
+      # creating the file if needed. Existing settings and hooks are kept, and an entry is
+      # skipped when a hook command for that event already runs the same
+      # `bin/agent-check hook ...`. Invalid JSON or an unexpected structure is reported and the
+      # file is left untouched. Writes at most once.
+      def merge_claude_hooks(entries)
+        path = ".claude/settings.json"
+        full_path = File.join(destination_root, path)
+        settings = File.exist?(full_path) ? JSON.parse(File.read(full_path)) : {"$schema" => CLAUDE_SETTINGS_SCHEMA}
+        hooks = settings.is_a?(Hash) ? (settings["hooks"] ||= {}) : nil
+        unless hooks.is_a?(Hash) && entries.keys.all? { |event| (hooks[event] ||= []).is_a?(Array) }
+          problems << "#{path}: unexpected structure under \"hooks\"; add the bin/agent-check hooks by hand"
+          return say_status(:error, "#{path}: unexpected structure under \"hooks\"; add the bin/agent-check hooks by hand", :red)
+        end
+
+        added = entries.reject { |event, entry| hook_command?(hooks[event], entry) }
+        return say_status(:identical, path, :blue) if added.empty?
+
+        added.each { |event, entry| hooks[event] << entry }
+        create_file path, "#{JSON.pretty_generate(settings)}\n", force: true
+      rescue JSON::ParserError => e
+        problems << "#{path}: invalid JSON; add the bin/agent-check hooks by hand"
+        say_status :error, "#{path} is not valid JSON (#{e.message.lines.first.strip}); add the bin/agent-check hooks by hand", :red
+      end
+
+      # Whether any hook in `groups` already runs the `bin/agent-check hook <event>` of `entry`.
+      def hook_command?(groups, entry)
+        signature = entry["hooks"].first["command"][%r{bin/agent-check hook \S+}]
+        groups.any? do |group|
+          group.is_a?(Hash) && Array(group["hooks"]).any? { |hook| hook.is_a?(Hash) && hook["command"].to_s.include?(signature) }
+        end
+      end
+
+      # base_branch from config/agent_harness.yml (written by the first step), for templates.
+      def base_branch
+        RailsAgentHarness::Configuration.load(destination_root).base_branch
+      rescue RailsAgentHarness::ConfigurationError
+        RailsAgentHarness::Configuration::DEFAULTS["base_branch"]
       end
 
       def app_file?(relative)

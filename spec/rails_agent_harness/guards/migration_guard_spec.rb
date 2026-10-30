@@ -70,6 +70,11 @@ RSpec.describe RailsAgentHarness::Guards::MigrationGuard do
       expect(call("Edit", "/elsewhere/db/schema.rb").allowed?).to be(true)
     end
 
+    it "blocks paths in any case (case-insensitive filesystems)" do
+      expect(call("Edit", File.join(root, "db/Schema.rb")).allowed?).to be(false)
+      expect(call("Write", File.join(root, "DB/migrate/20990101000000_x.rb")).allowed?).to be(false)
+    end
+
     it "allows malformed payloads" do
       expect(guard.pre_tool_use({}).allowed?).to be(true)
       expect(guard.pre_tool_use("tool_name" => "Write", "tool_input" => "x").allowed?).to be(true)

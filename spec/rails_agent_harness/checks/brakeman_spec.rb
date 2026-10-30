@@ -94,6 +94,18 @@ RSpec.describe RailsAgentHarness::Checks::Brakeman do
     expect(check(%w[app/models/post.rb], runner: AgentCheckHelper::FakeRunner.new(output: absolute)).status).to eq(:fail)
   end
 
+  it "matches parse errors reported under the root's real path when the root is a symlink" do
+    Dir.mktmpdir do |dir|
+      link = File.join(dir, "link")
+      File.symlink(root, link)
+      output = JSON.generate("warnings" => [], "errors" => [{"error" => "#{File.realpath(root)}/app/models/post.rb:3 :: parse error"}])
+      result = described_class.new(root: link, config: config, profile: build_profile, files: %w[app/models/post.rb],
+        runner: AgentCheckHelper::FakeRunner.new(output: output)).call
+
+      expect(result.status).to eq(:fail)
+    end
+  end
+
   it "passes with only Weak warnings" do
     expect(check(runner: AgentCheckHelper::FakeRunner.new(output: JSON.generate("warnings" => [warning("Weak")]))).status).to eq(:pass)
   end

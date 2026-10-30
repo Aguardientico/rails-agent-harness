@@ -76,6 +76,9 @@ should be rare and explainable.
   branch and running `bin/rails db:migrate` changes the schema without a migration on this
   branch. Commit that schema change on its own (it then belongs to the merge), or set
   `guards.schema.enabled: false`.
+- **The first `db:migrate` after upgrading to Rails 8.1 trips rule 4 too.** Rails 8.1 dumps
+  `db/schema.rb` with each table's columns sorted alphabetically, so the first re-dump
+  changes the file without a migration. Commit that re-dump on its own.
 - **Secondary databases only get rules 1-2.** Rule 3 checks the primary database
   (`db/migrate` against `db/schema.rb`/`db/structure.sql`); migrations in
   `db/<name>_migrate` (multi-database apps, Solid Queue/Cache/Cable) aren't matched to

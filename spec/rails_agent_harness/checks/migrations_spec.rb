@@ -175,6 +175,15 @@ RSpec.describe RailsAgentHarness::Checks::Migrations do
     end
   end
 
+  it "reports invalid UTF-8 in a migration as a finding, not a crash" do
+    with_app do |root|
+      File.binwrite(File.join(root, "db/migrate/20261030120000_add_published_to_posts.rb"), "# \xFF\xFE\n" + migration)
+      File.binwrite(File.join(root, "db/schema.rb"), "# \xFF\n" + schema("20261030120000"))
+
+      expect(check(root).status).to eq(:pass)
+    end
+  end
+
   it "works out added files with git when they aren't passed in" do
     with_app do |root|
       touch(root, "db/migrate/add_views.rb", migration("AddViews"))

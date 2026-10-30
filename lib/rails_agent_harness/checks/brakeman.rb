@@ -63,9 +63,11 @@ module RailsAgentHarness
       # fails the check, since that change wasn't scanned; other errors are only listed, so a
       # pre-existing problem can't trap the agent.
       # Whether `message` names `file` as a whole path, relative or under the root (so
-      # lib/a.rb doesn't match app/lib/a.rb).
+      # lib/a.rb doesn't match app/lib/a.rb). The root may be a symlink (macOS tmp dirs), so
+      # its real path is stripped too.
       def mentions?(message, file)
-        message.gsub("#{root}/", "").match?(/(\A|\s)#{Regexp.escape(file)}(:|\s|\z)/)
+        relative = [root, (File.realpath(root) if File.exist?(root))].compact.uniq.reduce(message) { |text, dir| text.gsub("#{dir}/", "") }
+        relative.match?(/(\A|\s)#{Regexp.escape(file)}(:|\s|\z)/)
       end
 
       def scan_errors(report)

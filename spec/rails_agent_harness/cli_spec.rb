@@ -74,6 +74,21 @@ RSpec.describe RailsAgentHarness::CLI do
       expect(stderr.string).to include("skipping missing.rb: no such file")
     end
 
+    it "works out added files against --base when --files is given" do
+      git(root, "checkout", "-q", "-b", "develop")
+      touch(root, "db/migrate/add_x.rb", "class AddX < ActiveRecord::Migration[8.1]\nend\n")
+      git(root, "add", "-A")
+      git(root, "commit", "-q", "-m", "on develop")
+      git(root, "checkout", "-q", "-b", "feature")
+      use_checks(RailsAgentHarness::Checks::Migrations)
+
+      run_cli("--files", "db/migrate/add_x.rb", "--base", "develop")
+      expect(stdout.string).to start_with("agent-check: PASS")
+
+      run_cli("--files", "db/migrate/add_x.rb", "--base", "main")
+      expect(stdout.string).to include("db/migrate/add_x.rb: does not look generated")
+    end
+
     it "diffs against --base" do
       git(root, "checkout", "-q", "-b", "feature")
       touch(root, "app/models/comment.rb", "x\n")

@@ -28,7 +28,8 @@ module RailsAgentHarness
     # - Without the hook, an agent can still hand-write a perfectly generator-shaped file.
     # - A legitimate `db:migrate` after pulling base-branch migrations changes the schema
     #   without a migration on this branch and trips rule 4: commit that separately, or set
-    #   `guards.schema.enabled: false`.
+    #   `guards.schema.enabled: false`. The same goes for the first `db:migrate` after
+    #   upgrading to Rails 8.1, which re-dumps db/schema.rb with columns sorted alphabetically.
     # - Rule 3 only checks the primary database (db/migrate); secondary databases
     #   (db/<name>_migrate) get rules 1-2.
     # - Non-timestamped migrations (`timestamped_migrations = false`) fail rule 1.
@@ -37,9 +38,11 @@ module RailsAgentHarness
         def allowed? = allowed
       end
 
-      MIGRATION = %r{\Adb/(migrate|[^/]+_migrate)/[^/]+\.rb\z}
-      SCHEMA = %r{\Adb/((schema|[^/]+_schema)\.rb|(structure|[^/]+_structure)\.sql)\z}
-      PRIMARY_MIGRATION = %r{\Adb/migrate/}
+      # Case-insensitive, so `db/Schema.rb` can't slip past the hook on a case-insensitive
+      # filesystem (macOS' default).
+      MIGRATION = %r{\Adb/(migrate|[^/]+_migrate)/[^/]+\.rb\z}i
+      SCHEMA = %r{\Adb/((schema|[^/]+_schema)\.rb|(structure|[^/]+_structure)\.sql)\z}i
+      PRIMARY_MIGRATION = %r{\Adb/migrate/}i
       FILENAME = /\A(\d{14})_([a-z0-9_]+)\.rb\z/
       FILE_TOOLS = %w[Write Edit].freeze
 
@@ -106,7 +109,7 @@ module RailsAgentHarness
         end
 
         expected = match[2].split("_").map(&:capitalize).join
-        source = File.read(File.join(@root, file), encoding: "UTF-8")
+        source = File.read(File.join(@root, file), encoding: "UTF-8").scrub
         name = source[/^\s*class\s+([A-Za-z0-9_:]+)\s*<\s*ActiveRecord::Migration\[\d+\.\d+\]/, 1]
         return [] if name && name.split("::").last.casecmp?(expected)
 
@@ -150,7 +153,7 @@ module RailsAgentHarness
         path = File.join(@root, "db/schema.rb")
         return unless File.file?(path)
 
-        File.read(path, encoding: "UTF-8")[/define\(version:\s*([\d_]+)\)/, 1]&.delete("_")
+        File.read(path, encoding: "UTF-8").scrub[/define\(version:\s*([\d_]+)\)/, 1]&.delete("_")
       end
     end
   end

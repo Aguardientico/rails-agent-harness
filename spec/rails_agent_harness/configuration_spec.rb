@@ -337,6 +337,18 @@ RSpec.describe RailsAgentHarness::Configuration do
         expect(config.to_h).to eq(expected)
       end
 
+      it "warns about and drops non-string keys" do
+        # Psych returns Integer/boolean keys for `1:` and YAML 1.1 booleans like `on:`.
+        write_config("on: true\nchecks:\n  1:\n")
+        config = nil
+
+        expect { config = described_class.load(root) }.to output(<<~ERR).to_stderr
+          agent_harness: unknown config key "true" in config/agent_harness.yml
+          agent_harness: unknown config key "checks.1" in config/agent_harness.yml
+        ERR
+        expect(config.to_h).to eq(expected_defaults)
+      end
+
       it "does not type-check unknown keys" do
         write_config("checks:\n  foo:\n    enabled: maybe\n")
 

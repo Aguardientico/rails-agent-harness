@@ -96,7 +96,7 @@ RSpec.describe RailsAgentHarness::CLI do
 
       expect(run_cli("--files", "db/migrate/20261030120000_add_x.rb", "--base", "nope")).to eq(1)
       expect(stdout.string).to include("migration added but db/schema.rb not updated")
-      expect(stderr.string).to be_empty
+      expect(stderr.string).to eq("agent-check: warning: --base nope: not a git repository; working out added files without it\n")
     end
 
     it "diffs against --base" do

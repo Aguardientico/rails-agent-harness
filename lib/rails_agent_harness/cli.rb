@@ -57,7 +57,8 @@ module RailsAgentHarness
         if options[:base]
           added = begin
             ChangedFiles.new(root, base_branch: options[:base]).added
-          rescue Error
+          rescue Error => e
+            @stderr.puts "agent-check: warning: --base #{options[:base]}: #{e.message}; working out added files without it"
             nil
           end
         end

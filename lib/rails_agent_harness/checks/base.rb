@@ -57,8 +57,8 @@ module RailsAgentHarness
         File.file?(path) && File.executable?(path)
       end
 
-      def run(argv)
-        runner.call(*argv)
+      def run(argv, **options)
+        runner.call(*argv, **options)
       end
 
       # The last `count` non-blank lines of command output.

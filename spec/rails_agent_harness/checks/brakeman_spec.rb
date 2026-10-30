@@ -30,13 +30,30 @@ RSpec.describe RailsAgentHarness::Checks::Brakeman do
   end
 
   it "fails on High and Medium confidence warnings, ignoring Weak ones" do
-    output = "Loading...\n" + JSON.generate("warnings" => [warning("Weak", line: 3), warning("Medium", line: 20), warning("High")])
+    output = JSON.generate("warnings" => [warning("Weak", line: 3), warning("Medium", line: 20), warning("High")])
     result = check(runner: AgentCheckHelper::FakeRunner.new(output: output))
 
     expect(result).to have_attributes(status: :fail, summary: "2 warnings")
     expect(result.details).to eq([
       "app/controllers/posts_controller.rb:12 [High] SQL Injection: Possible SQL injection",
       "app/controllers/posts_controller.rb:20 [Medium] SQL Injection: Possible SQL injection"
+    ])
+  end
+
+  it "parses only stdout, so braces in stderr warnings don't break it" do
+    runner = AgentCheckHelper::FakeRunner.new(output: JSON.generate("warnings" => []), stderr: "warning: {a: 1} is deprecated }\n")
+
+    expect(check(runner: runner).status).to eq(:pass)
+    expect(runner.options).to eq([{separate_stderr: true}])
+  end
+
+  it "lists files Brakeman couldn't parse next to the warnings" do
+    output = JSON.generate("warnings" => [warning("High")], "errors" => [{"error" => "app/models/x.rb parse error", "location" => "app/models/x.rb:3"}])
+    result = check(runner: AgentCheckHelper::FakeRunner.new(output: output))
+
+    expect(result.details).to eq([
+      "app/controllers/posts_controller.rb:12 [High] SQL Injection: Possible SQL injection",
+      "brakeman error: app/models/x.rb parse error (app/models/x.rb:3)"
     ])
   end
 

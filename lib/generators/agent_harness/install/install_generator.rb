@@ -90,7 +90,7 @@ module AgentHarness
 
         say "Next steps:"
         say "  1. Review AGENTS.md and config/agent_harness.yml."
-        say "  2. Commit AGENTS.md, CLAUDE.md and config/agent_harness.yml."
+        say "  2. Commit #{generated_files.join(", ")}."
       end
 
       private
@@ -106,6 +106,13 @@ module AgentHarness
         Dir[File.join(self.class.source_root, "agents_md", "*.md.tt")].sort.map do |partial|
           ERB.new(File.read(partial), trim_mode: "-").result(binding).strip
         end.join("\n\n")
+      end
+
+      # The files this run manages, for the summary.
+      def generated_files
+        files = %w[AGENTS.md CLAUDE.md config/agent_harness.yml bin/agent-check]
+        files << ".claude/settings.json" unless options[:skip_claude_hooks]
+        files
       end
 
       # Problems reported by steps; #print_summary turns them into a non-zero exit.

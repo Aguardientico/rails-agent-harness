@@ -126,9 +126,10 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "bin/agent-check and 
     end
 
     it "is skipped with --skip-claude-hooks" do
-      run_generator(["--skip-claude-hooks"])
+      output = run_generator(["--skip-claude-hooks"])
 
       expect(File).not_to exist(settings_path)
+      expect(output).to include("Commit AGENTS.md, CLAUDE.md, config/agent_harness.yml, bin/agent-check.")
       expect(File).to exist(File.join(root, "bin/agent-check"))
     end
   end

@@ -19,8 +19,8 @@ module RailsAgentHarness
         return skip("Brakeman not detected") unless profile.brakeman? || configured_command
         return skip("no changed files under app/, config/ or lib/") if files.none? { |file| file.match?(RELEVANT) }
 
-        result = run(command + ARGS)
-        report = parse(result.output)
+        result = run(command + ARGS, separate_stderr: true)
+        report = parse(result.stdout)
         return failure("could not read Brakeman's JSON output (exit status #{result.exit_status})", tail(result.output)) unless report
 
         warnings = report.fetch("warnings", []).select { |warning| FAILING_CONFIDENCE.include?(warning["confidence"]) }
@@ -29,7 +29,7 @@ module RailsAgentHarness
         details = warnings.map do |warning|
           "#{warning["file"]}:#{warning["line"]} [#{warning["confidence"]}] #{warning["warning_type"]}: #{warning["message"]}"
         end
-        failure(pluralize(warnings.size, "warning"), details.sort)
+        failure(pluralize(warnings.size, "warning"), details.sort + error_details(report))
       end
 
       private
@@ -41,17 +41,20 @@ module RailsAgentHarness
         %w[bundle exec brakeman]
       end
 
-      # Brakeman prints the JSON report on stdout; anything else (e.g. Bundler notices on
-      # stderr) is ignored.
-      def parse(output)
-        start = output.index("{")
-        finish = output.rindex("}")
-        return unless start && finish
-
-        report = JSON.parse(output[start..finish])
+      # Brakeman prints the JSON report on stdout (stderr is read separately, so warnings
+      # printed there can't break parsing).
+      def parse(stdout)
+        report = JSON.parse(stdout)
         report.is_a?(Hash) ? report : nil
       rescue JSON::ParserError
         nil
+      end
+
+      # Files Brakeman couldn't parse (and so didn't scan), shown next to the warnings.
+      def error_details(report)
+        Array(report["errors"]).map do |error|
+          "brakeman error: #{error["error"]}#{" (#{error["location"]})" if error["location"]}"
+        end
       end
     end
   end

@@ -5,21 +5,24 @@ require "rails_agent_harness/command_runner"
 
 # Builders for check, runner and CLI specs.
 module AgentCheckHelper
-  # Records every command and returns a canned CommandRunner::Result (or the block's).
+  # Records every command (and its options) and returns a canned CommandRunner::Result.
+  # `stderr` is only kept apart from stdout when the command asks for `separate_stderr`.
   class FakeRunner
-    attr_reader :calls
+    attr_reader :calls, :options
 
-    def initialize(output: "", exit_status: 0, &block)
+    def initialize(output: "", exit_status: 0, stderr: "")
       @output = output
+      @stderr = stderr
       @exit_status = exit_status
-      @block = block
       @calls = []
+      @options = []
     end
 
-    def call(*argv)
+    def call(*argv, **options)
       @calls << argv
-      output, exit_status = @block ? @block.call(argv) : [@output, @exit_status]
-      RailsAgentHarness::CommandRunner::Result.new(output: output, exit_status: exit_status, duration: 0.01)
+      @options << options
+      stdout = options[:separate_stderr] ? @output : @output + @stderr
+      RailsAgentHarness::CommandRunner::Result.new(output: @output + @stderr, exit_status: @exit_status, duration: 0.01, stdout: stdout)
     end
   end
 

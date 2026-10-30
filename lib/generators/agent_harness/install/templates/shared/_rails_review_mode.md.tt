@@ -1,0 +1,1 @@
+When reviewing on request, report findings only and don't edit files unless asked. When reviewing your own change before finishing it, fix the `blocker` and `should-fix` findings, then run `bin/agent-check` again.

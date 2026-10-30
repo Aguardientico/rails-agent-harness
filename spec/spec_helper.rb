@@ -2,6 +2,10 @@
 
 require "rails_agent_harness"
 
+# Generated files contain UTF-8; read them as such whatever the machine's locale. The
+# library itself doesn't rely on this (see the US-ASCII spec in install_generator_spec.rb).
+Encoding.default_external = Encoding::UTF_8
+
 Dir[File.expand_path("support/**/*.rb", __dir__)].sort.each { |file| require file }
 
 RSpec.configure do |config|

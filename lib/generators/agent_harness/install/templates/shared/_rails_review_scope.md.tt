@@ -1,0 +1,2 @@
+- Review the changes on this branch: `git diff --merge-base <%= base_branch %>` (committed, staged and unstaged changes since the merge base with `<%= base_branch %>`) plus untracked files (`git ls-files --others --exclude-standard`). If there is no local `<%= base_branch %>` branch, use `origin/<%= base_branch %>` (the same fallback `bin/agent-check` uses). Review a different diff, branch or PR when the user names one.
+- Read the whole file around each hunk, the models and associations involved, `<%= schema_file %>` and `config/routes.rb`, not just the changed lines.

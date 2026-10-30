@@ -1,0 +1,3 @@
+- Group findings by severity: `blocker`, `should-fix`, `nit`. Write each as `path:line - problem - concrete fix`, with a short code snippet when it helps.
+- End with a one-line verdict. When there is nothing to report, say "No issues found" explicitly.
+- Don't pad the review with praise or restate the diff.

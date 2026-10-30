@@ -56,13 +56,17 @@ module RailsAgentHarness
         # outside a git repository the check falls back on its own.
         if options[:base]
           added = begin
-            ChangedFiles.new(root, base_branch: options[:base]).added
-          rescue Error
+            changes = ChangedFiles.new(root, base_branch: options[:base])
+            warn_unresolved_base(changes, options[:base])
+            changes.added
+          rescue Error => e
+            @stderr.puts "agent-check: warning: --base #{options[:base]}: #{e.message}; working out added files without it"
             nil
           end
         end
       else
         changes = ChangedFiles.new(root, base_branch: options[:base] || config.base_branch)
+        warn_unresolved_base(changes, options[:base]) if options[:base]
         files = changes.list
         added = changes.added
       end
@@ -101,6 +105,14 @@ module RailsAgentHarness
       options
     rescue OptionParser::ParseError => e
       usage_error(e.message)
+    end
+
+    # An explicit --base that doesn't resolve falls back to HEAD (only uncommitted changes);
+    # say so instead of silently checking less than asked.
+    def warn_unresolved_base(changes, base)
+      return if changes.base_found?
+
+      @stderr.puts "agent-check: warning: --base #{base}: neither #{base} nor origin/#{base} exists; comparing against HEAD"
     end
 
     def usage_error(message)

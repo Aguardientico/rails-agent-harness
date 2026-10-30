@@ -18,7 +18,8 @@ RSpec.describe "rails_agent_harness.gemspec" do
     expect(spec.files).not_to be_empty
     expect(spec.files).to all(match(%r{\A(lib/|LICENSE\.txt\z|README\.md\z|CHANGELOG\.md\z)}))
     expect(spec.files).to include("lib/rails_agent_harness.rb", "LICENSE.txt", "README.md")
-    expect(spec.files.grep(%r{\A(spec|demo)/})).to be_empty
+    expect(spec.files.grep(%r{\A(spec|demo|docs)/})).to be_empty
+    expect(spec.files).to include("CHANGELOG.md")
   end
 
   it "declares the required metadata" do

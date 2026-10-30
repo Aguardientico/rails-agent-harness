@@ -1,5 +1,6 @@
 ruby_version: 3.3
 ignore:
   - "spec/dummy/db/schema.rb"
+  - "demo/scenario/**/*"
   - "tmp/**/*"
   - "vendor/**/*"

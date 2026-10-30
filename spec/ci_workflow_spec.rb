@@ -58,6 +58,22 @@ RSpec.describe ".github/workflows/ci.yml" do
     expect(test_job["steps"].map { |step| step["run"] }).to include("bundle exec rspec")
   end
 
+  it "runs the demo on Ruby 3.3 / Rails 8.1" do
+    demo = workflow["jobs"]["demo"]
+    setup = demo["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }
+
+    expect(demo["env"]).to eq("RAILS_VERSION" => "8.1")
+    expect(setup["with"]).to include("ruby-version" => "3.3", "bundler-cache" => true)
+    expect(demo["steps"].map { |step| step["run"] }).to include("demo/run")
+  end
+
+  it "builds the gem and lists its files" do
+    runs = workflow["jobs"]["build"]["steps"].map { |step| step["run"] }
+
+    expect(runs).to include("gem build rails_agent_harness.gemspec", "tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz")
+    expect(runs.last).to include("grep -vE '^(lib/|LICENSE.txt$|README.md$|CHANGELOG.md$)'")
+  end
+
   it "only tests Ruby versions the gemspec allows" do
     spec = Dir.chdir(DummyAppHelper::GEM_ROOT) { Gem::Specification.load("rails_agent_harness.gemspec") }
 

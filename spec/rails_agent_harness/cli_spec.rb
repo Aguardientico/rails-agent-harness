@@ -96,6 +96,20 @@ RSpec.describe RailsAgentHarness::CLI do
 
       expect(run_cli("--files", "db/migrate/20261030120000_add_x.rb", "--base", "nope")).to eq(1)
       expect(stdout.string).to include("migration added but db/schema.rb not updated")
+      expect(stderr.string).to eq("agent-check: warning: --base nope: not a git repository; working out added files without it\n")
+    end
+
+    it "warns when --base doesn't exist in the repository" do
+      touch(root, "app/models/post.rb", "class Post\nend\n")
+
+      expect(run_cli("--base", "nope")).to eq(0)
+      expect(stderr.string).to eq("agent-check: warning: --base nope: neither nope nor origin/nope exists; comparing against HEAD\n")
+      expect(calls.first).to eq(["rubocop", %w[app/models/post.rb]])
+
+      run_cli("--files", "app/models/post.rb", "--base", "nope")
+      expect(stderr.string).to include("--base nope: neither nope nor origin/nope exists")
+
+      run_cli("--base", "main")
       expect(stderr.string).to be_empty
     end
 

@@ -17,3 +17,7 @@ blank line. This README is not rendered.
 
 To add a section, add a partial with the next free prefix. Don't edit other features'
 partials.
+
+Content that must appear in more than one generated file lives in `../shared/`
+(e.g. `_rails_review_checklist.md.tt`, rendered into both the `50_` section and
+`.claude/skills/rails-review/SKILL.md` via `review_partial`), so the copies can't drift.

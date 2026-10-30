@@ -75,7 +75,7 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       output = run_generator
 
       expect(output).to include("Test framework: rspec", "Database:       unknown", "Schema format:  ruby")
-      expect(output).to include("Next steps:", "Commit AGENTS.md, CLAUDE.md, config/agent_harness.yml, bin/agent-check, .claude/settings.json.")
+      expect(output).to include("Next steps:", "Commit AGENTS.md, CLAUDE.md, config/agent_harness.yml, bin/agent-check, .claude/settings.json, .claude/skills/rails-review/SKILL.md.")
     end
   end
 
@@ -212,6 +212,20 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
 
       expect(read("AGENTS.md")).to eq(stray)
       expect(exit_status).to eq(1)
+    end
+
+    it "works when the default external encoding isn't UTF-8" do
+      write("AGENTS.md", "Équipe: règles → ici.\n")
+      original = Encoding.default_external
+      Encoding.default_external = Encoding::US_ASCII
+      begin
+        run_generator
+      ensure
+        Encoding.default_external = original
+      end
+
+      expect(exit_status).to eq(0)
+      expect(read("AGENTS.md")).to start_with("Équipe: règles → ici.\n\n<!-- BEGIN rails_agent_harness -->")
     end
 
     it "exits zero when nothing needs fixing" do
@@ -424,7 +438,7 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
 
     it "keeps the conventions section short" do
       run_generator
-      conventions = harness_block("AGENTS.md")[/## Rails conventions.*/m]
+      conventions = harness_block("AGENTS.md")[/^## Rails conventions\n.*?(?=^## |\z)/m]
 
       expect(conventions.lines.size).to be < 60
     end

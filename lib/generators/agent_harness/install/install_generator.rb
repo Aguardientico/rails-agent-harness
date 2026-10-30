@@ -33,6 +33,8 @@ module AgentHarness
 
       class_option :skip_claude_hooks, type: :boolean, default: false,
         desc: "Don't add bin/agent-check hooks to .claude/settings.json"
+      class_option :skip_skills, type: :boolean, default: false,
+        desc: "Don't write Claude Code skills (.claude/skills/)"
 
       # Exit non-zero when a step reports a problem (see #print_summary), like Rails' own
       # migration generator.
@@ -73,6 +75,22 @@ module AgentHarness
         merge_claude_hooks(CLAUDE_HOOKS)
       end
 
+      # The skill is fully owned by the gem (no markers): an existing, different file is kept
+      # unless --force, without Thor's interactive prompt (which overwrites on EOF, e.g. when an
+      # agent runs the generator).
+      def create_review_skill
+        return if options[:skip_skills]
+
+        path = ".claude/skills/rails-review/SKILL.md"
+        full_path = File.join(destination_root, path)
+        content = ERB.new(File.read(File.join(self.class.source_root, "claude/skills/rails-review/SKILL.md.tt"), encoding: "UTF-8"), trim_mode: "-").result(binding)
+        if File.exist?(full_path) && File.read(full_path, encoding: "UTF-8") != content && !options[:force]
+          return say_status(:exists, "#{path} (differs; kept, use --force to overwrite)", :blue)
+        end
+
+        create_file path, content, force: true
+      end
+
       def print_summary
         say ""
         say "Detected stack:"
@@ -105,7 +123,7 @@ module AgentHarness
       # in that directory).
       def agents_md
         Dir[File.join(self.class.source_root, "agents_md", "*.md.tt")].sort.map do |partial|
-          ERB.new(File.read(partial), trim_mode: "-").result(binding).strip
+          ERB.new(File.read(partial, encoding: "UTF-8"), trim_mode: "-").result(binding).strip
         end.join("\n\n")
       end
 
@@ -113,6 +131,7 @@ module AgentHarness
       def generated_files
         files = %w[AGENTS.md CLAUDE.md config/agent_harness.yml bin/agent-check]
         files << ".claude/settings.json" unless options[:skip_claude_hooks]
+        files << ".claude/skills/rails-review/SKILL.md" unless options[:skip_skills]
         files
       end
 
@@ -142,7 +161,7 @@ module AgentHarness
         full_path = File.join(destination_root, path)
         return create_file(path, block) unless File.exist?(full_path)
 
-        existing = File.read(full_path)
+        existing = File.read(full_path, encoding: "UTF-8")
         updated =
           if existing.include?(BEGIN_MARKER) || existing.include?(END_MARKER)
             unless markers_paired?(existing)
@@ -172,7 +191,7 @@ module AgentHarness
       def merge_claude_hooks(entries)
         path = ".claude/settings.json"
         full_path = File.join(destination_root, path)
-        settings = File.exist?(full_path) ? JSON.parse(File.read(full_path)) : {"$schema" => CLAUDE_SETTINGS_SCHEMA}
+        settings = File.exist?(full_path) ? JSON.parse(File.read(full_path, encoding: "UTF-8")) : {"$schema" => CLAUDE_SETTINGS_SCHEMA}
         hooks = settings.is_a?(Hash) ? (settings["hooks"] ||= {}) : nil
         unless hooks.is_a?(Hash) && entries.keys.all? { |event| (hooks[event] ||= []).is_a?(Array) }
           problems << "#{path}: unexpected structure under \"hooks\"; add the bin/agent-check hooks by hand"
@@ -202,6 +221,16 @@ module AgentHarness
         RailsAgentHarness::Configuration.load(destination_root).base_branch
       rescue RailsAgentHarness::ConfigurationError
         RailsAgentHarness::Configuration::DEFAULTS["base_branch"]
+      end
+
+      # A rendered templates/shared/_rails_review_<name>.md.tt partial, shared by the
+      # rails-review skill and the AGENTS.md review section so they can't drift.
+      def review_partial(name)
+        ERB.new(File.read(File.join(self.class.source_root, "shared", "_rails_review_#{name}.md.tt"), encoding: "UTF-8"), trim_mode: "-").result(binding).strip
+      end
+
+      def schema_file
+        (profile.schema_format == :sql) ? "db/structure.sql" : "db/schema.rb"
       end
 
       def app_file?(relative)

@@ -1,0 +1,2 @@
+- Confirm every index claim against `<%= schema_file %>` and every N+1 claim by reading the code that calls the query; drop findings you can't confirm.
+- Run `bin/agent-check` for RuboCop, Brakeman and the tests mapped to the changed files.

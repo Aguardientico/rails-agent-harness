@@ -1,0 +1,51 @@
+**N+1 queries**
+- Associations read inside loops, views, partials, serializers or jobs without `includes`/`preload`/`eager_load` → preload them in the query that loads the collection.
+- `.count` on an association that is already loaded → use `.size` (or `.length`); `.count` always queries.
+- `find`/`find_by`/`where` inside a loop → load the records once (`where(id: ids).index_by(&:id)`) or move the work into one query.
+- New associations that must always be preloaded → `strict_loading` on the association, or `config.active_record.strict_loading_by_default = true` in development to surface lazy loads.
+- Iterating over large tables with `each`/`all` → `find_each` or `in_batches`.
+
+**Missing indexes**
+- Every new `*_id` column has an index: `t.references`/`add_reference` add one by default; `add_column :posts, :author_id, :integer` does not → use `add_reference` or add `add_index`.
+- `validates :x, uniqueness: true` is backed by a **unique** index, composite when it has `scope:` (`add_index :memberships, [:user_id, :group_id], unique: true`).
+- Columns used in `where`/`order`/`find_by` on large tables have an index; polymorphic associations index `[*_type, *_id]` together.
+- Verify every claim against `<%= schema_file %>` before reporting it.
+
+**Strong parameters**
+- Every create/update uses permitted params → `params.expect(post: [:title, :body])` (or `params.require(...).permit(...)`).
+- Never `permit!` or `params.to_unsafe_h`.
+- Sensitive attributes (`role`, `admin`, `user_id`, `account_id`, ...) are not permitted unless that is intended; nested attributes are listed explicitly.
+
+**Callbacks**
+- Side effects (emails, HTTP calls, jobs) in `before_*`/`after_save` → move them to `after_commit` or to an explicit service object or job.
+- Callbacks that update other models, create cascades, or depend on conditional flags → prefer an explicit method called from the controller or service.
+- `update_column(s)`, `update_all` or skipped callbacks used to dodge other callbacks → fix the callback design instead.
+
+**Transactions**
+- Writes to several records not wrapped in `ActiveRecord::Base.transaction` → wrap them so they succeed or fail together.
+- Non-bang `save`/`update`/`create` inside a transaction (failures don't roll back) → use `save!`/`update!`/`create!`.
+- External calls inside a transaction (HTTP, mailers, `perform_later` on a job without `self.enqueue_after_transaction_commit = true`) → move them to `after_commit` or after the transaction.
+- Long transactions holding locks; read-modify-write on counters or balances without a lock → `with_lock`/`lock`, or an atomic `update_counters`/`increment!`.
+
+**Security**
+- SQL injection: string interpolation in `where`/`order`/`pluck`/`find_by_sql`/`group` → bind parameters (`where("title = ?", q)`), `sanitize_sql_*`, and an allow-list for `order` columns.
+- XSS: `html_safe`, `raw` or `<%%==` on user input → escape it or use `sanitize`.
+- Missing authorization: records loaded by id without scoping (`Post.find(params[:id])`) → scope to the user or tenant (`current_user.posts.find(params[:id])`).
+- Open redirects: `redirect_to params[:url]`, or user input with `allow_other_host: true` → `redirect_to url_from(params[:url]) || root_path`, and keep `config.action_controller.action_on_open_redirect = :raise` (the default since `load_defaults 7.0`).
+- `skip_forgery_protection` or `protect_from_forgery except:` changes need a reason.
+- Secrets in code or logs → `Rails.application.credentials`/ENV, and add sensitive params to `config.filter_parameters`.
+- `send`, `public_send`, `constantize` or `safe_constantize` with user input → map user input to an allow-list.
+- File paths and uploads built from user input (`File.read(params[:path])`, `send_file`) → validate against an allow-list.
+- `Marshal.load` or `YAML.load` of untrusted data → `JSON.parse` or `YAML.safe_load`.
+<% if profile.brakeman? -%>
+- Run `<%= security_command %>` and treat new warnings as findings.
+<% end -%>
+
+**Tests**
+<% if profile.test_framework == :rspec -%>
+- Every behavior change has a spec under `spec/`; new endpoints have request specs (`spec/requests/`).
+<% elsif profile.test_framework == :minitest -%>
+- Every behavior change has a test under `test/`; new endpoints have integration or system tests (`test/integration/`, `test/system/`).
+<% else -%>
+- Every behavior change has a test; new endpoints have request or system tests.
+<% end -%>

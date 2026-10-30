@@ -33,15 +33,23 @@ module RailsAgentHarness
     # `git merge-base HEAD <base>`, then against `origin/<base>`; HEAD when neither resolves
     # (e.g. on the base branch without a remote), or the empty tree before the first commit.
     def merge_base
-      @merge_base ||= begin
-        candidates = [@base_branch, "origin/#{@base_branch}"].filter_map do |base|
-          git("merge-base", "HEAD", base)&.strip
-        end
-        candidates.find { |sha| !sha.empty? } || (git("rev-parse", "--verify", "--quiet", "HEAD") ? "HEAD" : EMPTY_TREE)
-      end
+      @merge_base ||= base_merge_base || (git("rev-parse", "--verify", "--quiet", "HEAD") ? "HEAD" : EMPTY_TREE)
+    end
+
+    # Whether the base branch (or origin/<base>) resolved, i.e. #merge_base didn't fall back.
+    def base_found?
+      !base_merge_base.nil?
     end
 
     private
+
+    def base_merge_base
+      return @base_merge_base if defined?(@base_merge_base)
+
+      @base_merge_base = [@base_branch, "origin/#{@base_branch}"].lazy
+        .filter_map { |base| git("merge-base", "HEAD", base)&.strip }
+        .find { |sha| !sha.empty? }
+    end
 
     def untracked
       git_paths("ls-files", "--others", "--exclude-standard", "-z")

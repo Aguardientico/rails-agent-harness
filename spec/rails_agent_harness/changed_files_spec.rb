@@ -96,7 +96,9 @@ RSpec.describe RailsAgentHarness::ChangedFiles do
 
         files = changed(root, base: "nope")
         expect(files.merge_base).to eq("HEAD")
+        expect(files.base_found?).to be(false)
         expect(files.list).to eq(%w[app/x.rb])
+        expect(changed(root).base_found?).to be(true)
       end
     end
 

@@ -84,11 +84,13 @@ end
 RSpec.describe "CHANGELOG.md and RELEASING.md" do
   let(:root) { File.expand_path("../..", __dir__) }
 
-  it "has an Unreleased header above the 0.1.0 entry" do
+  it "has an Unreleased header above the current version's entry (unreleased or dated)" do
     changelog = File.read(File.join(root, "CHANGELOG.md"))
+    entry = changelog.index(/^## \[#{Regexp.escape(RailsAgentHarness::VERSION)}\] - (Unreleased|\d{4}-\d{2}-\d{2})$/o)
 
     expect(changelog).to include("keepachangelog.com/en/1.1.0", "Semantic Versioning")
-    expect(changelog.index("## [Unreleased]")).to be < changelog.index("## [#{RailsAgentHarness::VERSION}] - Unreleased")
+    expect(entry).not_to be_nil
+    expect(changelog.index("## [Unreleased]")).to be < entry
   end
 
   it "describes the manual release without automating it" do

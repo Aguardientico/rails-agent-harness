@@ -1,0 +1,115 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Release smoke test: builds the gem, installs the .gem file (not the checkout) into the
+# current Ruby, creates a fresh Rails app with `rails new`, adds the gem to it, runs the
+# install generator and checks bin/agent-check and the migration guard from the packaged gem.
+#
+#   script/smoke_packaged_gem
+#
+# RAILS_VERSION picks the Rails release for the app ("8.1" by default); it is installed
+# with `gem install rails` when missing. Needs network access for `rails new`/`bundle install`.
+# Exits non-zero, naming the step, when a step doesn't behave as expected.
+
+require "bundler"
+require "fileutils"
+require "json"
+require "open3"
+require "shellwords"
+require "tmpdir"
+
+class SmokePackagedGem
+  REPO = File.expand_path("..", __dir__)
+  GIT = %w[git -c user.email=smoke@example.com -c user.name=Smoke].freeze
+  RAILS_NEW_OPTIONS = %w[--skip-docker --skip-kamal --skip-thruster --skip-ci --skip-javascript].freeze
+  GENERATED = %w[
+    AGENTS.md config/agent_harness.yml bin/agent-check
+    .claude/settings.json .claude/skills/rails-review/SKILL.md
+  ].freeze
+
+  class Failure < StandardError; end
+
+  def call
+    Bundler.with_unbundled_env { Dir.mktmpdir("agent_harness_smoke") { |dir| run_in(dir) } }
+    puts "\nsmoke: the packaged gem installs and works in a fresh Rails #{rails_version} app"
+    0
+  rescue Failure => e
+    warn "\nsmoke: FAILED: #{e.message}"
+    1
+  end
+
+  private
+
+  def run_in(dir)
+    gem = File.join(dir, "rails_agent_harness-#{version}.gem")
+    app = File.join(dir, "app")
+
+    run "gem build", %W[gem build rails_agent_harness.gemspec --output #{gem}], chdir: REPO
+    run "gem install the .gem", %W[gem install --local --no-document #{gem}]
+    ensure_rails
+    run "rails new", ["rails", "_#{rails_version}_", "new", app, *RAILS_NEW_OPTIONS]
+    run "bundle add", %W[bundle add rails_agent_harness --version #{version} --group development --skip-install], chdir: app
+    run "bundle install", %w[bundle install --prefer-local], chdir: app
+
+    gem_path = run("locate the gem", %w[bundle exec ruby -e print(Gem.loaded_specs["rails_agent_harness"].full_gem_path)], chdir: app)
+    fail!("the app loads the gem from the checkout (#{gem_path}), not the .gem") if gem_path.start_with?(REPO)
+    puts "  rails_agent_harness loaded from #{gem_path}"
+
+    run "commit the new app", [*GIT, "add", "-A"], chdir: app
+    run "commit the new app", [*GIT, "commit", "-q", "-m", "rails new"], chdir: app
+    run "bin/rails g agent_harness:install", %w[bin/rails g agent_harness:install], chdir: app
+    missing = GENERATED.reject { |path| File.exist?(File.join(app, path)) }
+    fail!("the generator did not write #{missing.join(", ")}") unless missing.empty?
+    run "commit the harness", [*GIT, "add", "-A"], chdir: app
+    run "commit the harness", [*GIT, "commit", "-q", "-m", "Install rails_agent_harness"], chdir: app
+
+    run "bin/agent-check --version", %w[bin/agent-check --version], chdir: app, expect: 0
+    run "bin/agent-check (no changes)", %w[bin/agent-check], chdir: app, expect: 0
+    FileUtils.mkdir_p(File.join(app, "db/migrate"))
+    File.write(File.join(app, "db/migrate/20991231000000_add_body_to_posts.rb"), <<~RUBY)
+      class AddBodyToPosts < ActiveRecord::Migration[8.1]
+        def change
+          add_column :posts, :body, :text
+        end
+      end
+    RUBY
+    run "bin/agent-check (hand-written migration)", %w[bin/agent-check --only migrations], chdir: app, expect: 1
+    payload = JSON.generate("tool_name" => "Write", "tool_input" => {"file_path" => File.join(app, "db/migrate/20991231000001_x.rb")})
+    run "bin/agent-check hook pre-tool-use", %w[bin/agent-check hook pre-tool-use], chdir: app, stdin: payload, expect: 2
+  end
+
+  def ensure_rails
+    _, status = Open3.capture2e("rails", "_#{rails_version}_", "--version")
+    return if status.success?
+
+    run "gem install rails", %W[gem install rails --version ~>\ #{rails_series}.0 --no-document]
+    Gem::Specification.reset
+    @rails_version = nil
+  end
+
+  # Runs argv and checks its exit status; prints the command and returns its output.
+  def run(label, argv, chdir: Dir.pwd, stdin: nil, expect: 0)
+    puts "$ #{argv.shelljoin}"
+    output, status = Open3.capture2e(*argv, chdir: chdir, stdin_data: stdin.to_s)
+    return output if status.exitstatus == expect
+
+    fail!("#{label}: exit status #{status.exitstatus}, expected #{expect}\n#{output.lines.last(30).join}")
+  end
+
+  def fail!(message) = raise(Failure, message)
+
+  def version
+    @version ||= File.read(File.join(REPO, "lib/rails_agent_harness/version.rb"))[/VERSION = "(.+?)"/, 1]
+  end
+
+  def rails_series = ENV.fetch("RAILS_VERSION", "8.1")
+
+  # The newest installed Rails in the series, e.g. "8.1.4".
+  def rails_version
+    @rails_version ||= Gem::Specification
+      .select { |spec| spec.name == "railties" && spec.version.segments.first(2).join(".") == rails_series }
+      .max_by(&:version)&.version&.to_s || rails_series
+  end
+end
+
+exit SmokePackagedGem.new.call

@@ -67,11 +67,25 @@ RSpec.describe ".github/workflows/ci.yml" do
     expect(demo["steps"].map { |step| step["run"] }).to include("demo/run")
   end
 
-  it "builds the gem and lists its files" do
-    runs = workflow["jobs"]["build"]["steps"].map { |step| step["run"] }
+  it "builds the gem and checks its file list" do
+    steps = workflow["jobs"]["build"]["steps"]
+    run = ->(name) { steps.find { |step| step["name"] == name }.fetch("run") }
 
-    expect(runs).to include("gem build rails_agent_harness.gemspec", "tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz")
-    expect(runs.last).to include("grep -vE '^(lib/|LICENSE.txt$|README.md$|CHANGELOG.md$)'")
+    expect(steps.map { |step| step["run"] }).to include("gem build rails_agent_harness.gemspec", "tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz")
+    expect(run["Only lib/**, LICENSE.txt, README.md and CHANGELOG.md are packaged"]).to include("grep -vE '^(lib/|LICENSE.txt$|README.md$|CHANGELOG.md$)'")
+    expect(run["The generator and its templates are packaged"]).to include(
+      "lib/generators/agent_harness/install/install_generator.rb",
+      "lib/generators/agent_harness/install/templates/bin/agent-check.tt"
+    )
+  end
+
+  it "installs the packaged gem into a fresh Rails 8.1 app on Ruby 3.3" do
+    smoke = workflow["jobs"]["smoke"]
+    setup = smoke["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }
+
+    expect(smoke["env"]).to eq("RAILS_VERSION" => "8.1")
+    expect(setup["with"]).to eq("ruby-version" => "3.3")
+    expect(smoke["steps"].map { |step| step["run"] }).to include("script/smoke_packaged_gem")
   end
 
   it "only tests Ruby versions the gemspec allows" do

@@ -75,3 +75,25 @@ jobs:
       - run: tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz
       - name: Only lib/**, LICENSE.txt, README.md and CHANGELOG.md are packaged
         run: "! tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz | grep -vE '^(lib/|LICENSE.txt$|README.md$|CHANGELOG.md$)'"
+      - name: The generator and its templates are packaged
+        run: |
+          files=$(tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz)
+          for f in LICENSE.txt README.md CHANGELOG.md \
+            lib/generators/agent_harness/install/install_generator.rb \
+            lib/generators/agent_harness/install/templates/bin/agent-check.tt \
+            lib/generators/agent_harness/install/templates/agent_harness.yml.tt \
+            lib/generators/agent_harness/install/templates/claude/skills/rails-review/SKILL.md.tt; do
+            echo "$files" | grep -qx "$f" || { echo "missing from the gem: $f"; exit 1; }
+          done
+
+  smoke:
+    name: Packaged gem in a fresh Rails app
+    runs-on: ubuntu-latest
+    env:
+      RAILS_VERSION: "8.1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - run: script/smoke_packaged_gem

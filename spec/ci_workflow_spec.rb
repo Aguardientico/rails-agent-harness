@@ -1,23 +1,15 @@
 # frozen_string_literal: true
 
-require "json"
 require "yaml"
 
 RSpec.describe ".github/workflows/ci.yml" do
   subject(:workflow) { YAML.load_file(File.join(DummyAppHelper::GEM_ROOT, ".github/workflows/ci.yml")) }
 
-  # YAML 1.1 parses the bare `on:` key as `true`.
   let(:triggers) { workflow.fetch(true) { workflow.fetch("on") } }
   let(:test_job) { workflow["jobs"]["test"] }
-  let(:latest_ruby) { File.read(File.join(DummyAppHelper::GEM_ROOT, ".ruby-version")).strip }
-  let(:ruby_versions) do
-    format_args = test_job["strategy"]["matrix"]["ruby"][/format\('(.+?)', needs\.ruby-version\.outputs\.ruby\)/, 1]
-    JSON.parse(format_args.sub("{0}", latest_ruby))
-  end
 
-  # Expands a GitHub Actions matrix (cartesian product + `include`) into jobs.
   def expand_matrix(matrix)
-    axes = matrix.except("include", "exclude").merge("ruby" => ruby_versions)
+    axes = matrix.except("include", "exclude")
     jobs = axes.values.first.product(*axes.values.drop(1)).map { |combo| axes.keys.zip(combo).to_h }
     jobs + matrix.fetch("include", []).reject do |extra|
       jobs.any? { |job| extra.all? { |key, value| job[key] == value } }
@@ -41,19 +33,7 @@ RSpec.describe ".github/workflows/ci.yml" do
   end
 
   it "pins the latest Ruby to 4.0.9 in .ruby-version" do
-    expect(latest_ruby).to eq("4.0.9")
-  end
-
-  it "reads the latest Ruby from .ruby-version instead of hard-coding it" do
-    reader = workflow["jobs"]["ruby-version"]
-
-    expect(reader["outputs"]).to eq("ruby" => "${{ steps.read.outputs.ruby }}")
-    expect(reader["steps"].last["run"]).to include("< .ruby-version", "$GITHUB_OUTPUT")
-    expect(test_job["needs"]).to eq("ruby-version")
-    expect(test_job["strategy"]["matrix"]["ruby"]).to eq(
-      %(${{ fromJSON(format('["3.3", "3.4", "{0}"]', needs.ruby-version.outputs.ruby)) }})
-    )
-    expect(File.read(File.join(DummyAppHelper::GEM_ROOT, ".github/workflows/ci.yml"))).not_to include(latest_ruby)
+    expect(File.read(File.join(DummyAppHelper::GEM_ROOT, ".ruby-version")).strip).to eq("4.0.9")
   end
 
   it "lints with standardrb on the latest Ruby" do
@@ -64,17 +44,17 @@ RSpec.describe ".github/workflows/ci.yml" do
     expect(lint["steps"].map { |step| step["run"] }).to include("bundle exec standardrb")
   end
 
-  it "tests Ruby 3.3/3.4/4.0.9 on Rails main and 8.1, all required" do
+  it "tests Ruby 3.3/3.4/4.0 on Rails main and 8.1, all required" do
     jobs = expand_matrix(test_job["strategy"]["matrix"])
 
     expect(test_job["strategy"]["fail-fast"]).to be(false)
     expect(jobs).to contain_exactly(
       {"ruby" => "3.3", "rails" => "main"},
       {"ruby" => "3.4", "rails" => "main"},
-      {"ruby" => "4.0.9", "rails" => "main"},
+      {"ruby" => "4.0", "rails" => "main"},
       {"ruby" => "3.3", "rails" => "8.1"},
       {"ruby" => "3.4", "rails" => "8.1"},
-      {"ruby" => "4.0.9", "rails" => "8.1"}
+      {"ruby" => "4.0", "rails" => "8.1"}
     )
     expect(test_job).not_to have_key("continue-on-error")
     expect(test_job["env"]).to eq("RAILS_VERSION" => "${{ matrix.rails }}")
@@ -101,7 +81,7 @@ RSpec.describe ".github/workflows/ci.yml" do
   it "only tests Ruby versions the gemspec allows" do
     spec = Dir.chdir(DummyAppHelper::GEM_ROOT) { Gem::Specification.load("rails_agent_harness.gemspec") }
 
-    ruby_versions.each do |ruby|
+    test_job["strategy"]["matrix"]["ruby"].each do |ruby|
       expect(spec.required_ruby_version).to be_satisfied_by(Gem::Version.new(ruby))
     end
   end

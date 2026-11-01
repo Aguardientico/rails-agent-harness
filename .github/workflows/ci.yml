@@ -25,25 +25,13 @@ jobs:
           bundler-cache: true
       - run: bundle exec standardrb
 
-  # The latest Ruby comes from .ruby-version so it is pinned in one place.
-  ruby-version:
-    name: Read .ruby-version
-    runs-on: ubuntu-latest
-    outputs:
-      ruby: ${{ steps.read.outputs.ruby }}
-    steps:
-      - uses: actions/checkout@v7
-      - id: read
-        run: echo "ruby=$(tr -d '[:space:]' < .ruby-version)" >> "$GITHUB_OUTPUT"
-
   test:
     name: Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
-    needs: ruby-version
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        ruby: ${{ fromJSON(format('["3.3", "3.4", "{0}"]', needs.ruby-version.outputs.ruby)) }}
+        ruby: ["3.3", "3.4", "4.0"]
         rails: ["main", "8.1"]
     env:
       RAILS_VERSION: ${{ matrix.rails }}

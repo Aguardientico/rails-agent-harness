@@ -195,7 +195,7 @@ The heuristic and its known limits are documented in [`docs/migration_guard.md`]
 ## Compatibility
 
 - **Rails**: the harness tracks Rails `main` (8.2.0.alpha, unreleased) via `gem "rails", github: "rails/rails", branch: "main"`, and that is the default for development and CI. Rails 8.1 is also tested in CI.
-- **Ruby** 3.3, 3.4 and 4.0 (4.0.9, from `.ruby-version`), all tested in CI against both Rails `main` and 8.1. Only versions still maintained upstream are supported; old ones are dropped when they reach end of life.
+- **Ruby** 3.3, 3.4 and 4.0 (latest 4.0.x in CI, 4.0.9 in `.ruby-version`), all tested in CI against both Rails `main` and 8.1. Only versions still maintained upstream are supported; old ones are dropped when they reach end of life.
 - RSpec or Minitest. RuboCop/Standard and Brakeman are optional: checks for tools that aren't present are skipped.
 - Known limitations: in a monorepo, install the harness in the Rails app's directory and start Claude Code there (Claude Code reads `.claude/settings.json` from the directory it starts in); and with Claude Code worktrees, the post-edit RuboCop hook skips files edited inside a worktree.
 

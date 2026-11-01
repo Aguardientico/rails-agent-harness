@@ -21,17 +21,29 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "4.0.9"
+          ruby-version: .ruby-version
           bundler-cache: true
       - run: bundle exec standardrb
 
+  # The latest Ruby comes from .ruby-version so it is pinned in one place.
+  ruby-version:
+    name: Read .ruby-version
+    runs-on: ubuntu-latest
+    outputs:
+      ruby: ${{ steps.read.outputs.ruby }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: read
+        run: echo "ruby=$(tr -d '[:space:]' < .ruby-version)" >> "$GITHUB_OUTPUT"
+
   test:
     name: Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
+    needs: ruby-version
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        ruby: ["3.3", "3.4", "4.0.9"]
+        ruby: ${{ fromJSON(format('["3.3", "3.4", "{0}"]', needs.ruby-version.outputs.ruby)) }}
         rails: ["main", "8.1"]
     env:
       RAILS_VERSION: ${{ matrix.rails }}
@@ -52,7 +64,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "4.0.9"
+          ruby-version: .ruby-version
           bundler-cache: true
       - run: demo/run
 
@@ -63,7 +75,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "4.0.9"
+          ruby-version: .ruby-version
           bundler-cache: true
       - run: gem build rails_agent_harness.gemspec
       - run: tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz

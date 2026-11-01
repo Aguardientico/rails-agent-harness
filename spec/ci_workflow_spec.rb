@@ -38,32 +38,34 @@ RSpec.describe ".github/workflows/ci.yml" do
     lint = workflow["jobs"]["lint"]
     setup = lint["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }
 
-    expect(setup["with"]).to include("ruby-version" => "4.0", "bundler-cache" => true)
+    expect(setup["with"]).to include("ruby-version" => "4.0.9", "bundler-cache" => true)
     expect(lint["steps"].map { |step| step["run"] }).to include("bundle exec standardrb")
   end
 
-  it "tests Ruby 3.3/3.4/4.0 on Rails 8.1 plus an allowed-to-fail Rails main job" do
+  it "tests Ruby 3.3/3.4/4.0.9 on Rails main and 8.1, all required" do
     jobs = expand_matrix(test_job["strategy"]["matrix"])
 
     expect(test_job["strategy"]["fail-fast"]).to be(false)
     expect(jobs).to contain_exactly(
-      {"ruby" => "3.3", "rails" => "8.1", "experimental" => false},
-      {"ruby" => "3.4", "rails" => "8.1", "experimental" => false},
-      {"ruby" => "4.0", "rails" => "8.1", "experimental" => false},
-      {"ruby" => "4.0", "rails" => "main", "experimental" => true}
+      {"ruby" => "3.3", "rails" => "main"},
+      {"ruby" => "3.4", "rails" => "main"},
+      {"ruby" => "4.0.9", "rails" => "main"},
+      {"ruby" => "3.3", "rails" => "8.1"},
+      {"ruby" => "3.4", "rails" => "8.1"},
+      {"ruby" => "4.0.9", "rails" => "8.1"}
     )
-    expect(test_job["continue-on-error"]).to eq("${{ matrix.experimental }}")
+    expect(test_job).not_to have_key("continue-on-error")
     expect(test_job["env"]).to eq("RAILS_VERSION" => "${{ matrix.rails }}")
     expect(test_job["name"]).to start_with("Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}")
     expect(test_job["steps"].map { |step| step["run"] }).to include("bundle exec rspec")
   end
 
-  it "runs the demo on Ruby 3.3 / Rails 8.1" do
+  it "runs the demo on Ruby 4.0.9 / Rails 8.1" do
     demo = workflow["jobs"]["demo"]
     setup = demo["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }
 
     expect(demo["env"]).to eq("RAILS_VERSION" => "8.1")
-    expect(setup["with"]).to include("ruby-version" => "3.3", "bundler-cache" => true)
+    expect(setup["with"]).to include("ruby-version" => "4.0.9", "bundler-cache" => true)
     expect(demo["steps"].map { |step| step["run"] }).to include("demo/run")
   end
 

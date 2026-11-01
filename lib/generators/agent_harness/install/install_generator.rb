@@ -29,10 +29,6 @@ module AgentHarness
         }
       }.freeze
       CLAUDE_SETTINGS_SCHEMA = "https://json.schemastore.org/claude-code-settings.json"
-      # Project CLAUDE.md files that Claude Code reads instead of AGENTS.md. We only add the
-      # AGENTS.md import to one that already exists: Claude Code 2.1.277+ reads AGENTS.md itself
-      # when there is none.
-      CLAUDE_MD_PATHS = %w[CLAUDE.md .claude/CLAUDE.md].freeze
 
       source_root File.expand_path("templates", __dir__)
 
@@ -60,20 +56,15 @@ module AgentHarness
         upsert_marked_block "AGENTS.md", agents_md
       end
 
-      # Only an existing CLAUDE.md (./CLAUDE.md, else .claude/CLAUDE.md) gets the import: while
-      # one exists Claude Code reads it instead of AGENTS.md. CLAUDE.local.md is personal and
-      # usually not committed, so it is never edited, but it also stops Claude Code from reading
-      # AGENTS.md, so its presence is pointed out.
       def update_claude_md
-        path = CLAUDE_MD_PATHS.find { |candidate| app_file?(candidate) }
-        return note_missing_claude_md unless path
+        return note_missing_claude_md unless app_file?("CLAUDE.md")
 
-        if same_file?(path, "AGENTS.md")
-          return say_status(:skip, "#{path} (same file as AGENTS.md, which already has the instructions)", :yellow)
+        if same_file?("CLAUDE.md", "AGENTS.md")
+          return say_status(:skip, "CLAUDE.md (same file as AGENTS.md, which already has the instructions)", :yellow)
         end
 
-        @claude_md = path
-        upsert_marked_block path, <<~MARKDOWN
+        @claude_md = "CLAUDE.md"
+        upsert_marked_block "CLAUDE.md", <<~MARKDOWN
           @AGENTS.md
 
           This project's agent instructions live in AGENTS.md (shared by Claude Code, Codex and Cursor). Read it before making changes.
@@ -152,7 +143,7 @@ module AgentHarness
       end
 
       def note_missing_claude_md
-        say_status :skip, "CLAUDE.md (none; Claude Code 2.1.277+ reads AGENTS.md directly, older versions need a CLAUDE.md with @AGENTS.md)", :blue
+        say_status :skip, "CLAUDE.md (none; Claude Code 2.1.277+ reads AGENTS.md directly)", :blue
         return unless app_file?("CLAUDE.local.md")
 
         say_status :note, "CLAUDE.local.md stops Claude Code from reading AGENTS.md; add @AGENTS.md to it", :yellow

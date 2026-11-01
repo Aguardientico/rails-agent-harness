@@ -62,7 +62,7 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
 
       expect(File).not_to exist(File.join(root, "CLAUDE.md"))
       expect(File).not_to exist(File.join(root, ".claude/CLAUDE.md"))
-      expect(output).to include("skip  CLAUDE.md (none; Claude Code 2.1.277+ reads AGENTS.md directly, older versions need a CLAUDE.md with @AGENTS.md)")
+      expect(output).to include("skip  CLAUDE.md (none; Claude Code 2.1.277+ reads AGENTS.md directly)")
       expect(output).not_to include("CLAUDE.local.md")
     end
 
@@ -151,24 +151,13 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       expect(output).to include("Commit AGENTS.md, CLAUDE.md, config/agent_harness.yml")
     end
 
-    it "gets the import when it lives in .claude/CLAUDE.md" do
+    it "leaves .claude/CLAUDE.md alone, since @AGENTS.md there would import .claude/AGENTS.md" do
       write(".claude/CLAUDE.md", "Use plan mode.\n")
-
-      output = run_generator
-
-      expect(read(".claude/CLAUDE.md")).to eq("Use plan mode.\n\n#{import_block}")
-      expect(File).not_to exist(File.join(root, "CLAUDE.md"))
-      expect(output).to include("Commit AGENTS.md, .claude/CLAUDE.md, config/agent_harness.yml")
-    end
-
-    it "only updates ./CLAUDE.md when both exist" do
-      write("CLAUDE.md", "Root.\n")
-      write(".claude/CLAUDE.md", "Nested.\n")
 
       run_generator
 
-      expect(read("CLAUDE.md")).to include("Root.", "@AGENTS.md")
-      expect(read(".claude/CLAUDE.md")).to eq("Nested.\n")
+      expect(read(".claude/CLAUDE.md")).to eq("Use plan mode.\n")
+      expect(File).not_to exist(File.join(root, "CLAUDE.md"))
     end
 
     it "refreshes a stale block and is idempotent" do
@@ -333,18 +322,6 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       expect(read("AGENTS.md")).not_to include("@AGENTS.md")
       expect(output).to include("skip  CLAUDE.md (same file as AGENTS.md")
       expect(output).to include("Commit AGENTS.md, config/agent_harness.yml")
-    end
-
-    it "does the same when .claude/CLAUDE.md links to AGENTS.md" do
-      write("AGENTS.md", "Shared.\n")
-      FileUtils.mkdir_p(File.join(root, ".claude"))
-      File.symlink("../AGENTS.md", File.join(root, ".claude/CLAUDE.md"))
-
-      output = run_generator
-
-      expect(File.symlink?(File.join(root, ".claude/CLAUDE.md"))).to be(true)
-      expect(read("AGENTS.md")).not_to include("@AGENTS.md")
-      expect(output).to include("skip  .claude/CLAUDE.md (same file as AGENTS.md")
     end
   end
 

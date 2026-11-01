@@ -1,0 +1,40 @@
+name: Pages
+
+# Deploys the static landing page in site/ to GitHub Pages. No build step.
+#
+# GitHub Pages is not enabled for this repository yet, so this workflow only runs manually.
+# To publish:
+#   1. Settings > Pages > Build and deployment > Source: "GitHub Actions".
+#   2. Run this workflow from the Actions tab, or uncomment the push trigger below to
+#      deploy on every change to site/ on main.
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  #   paths: ["site/**", ".github/workflows/pages.yml"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; don't cancel a deployment that is already running.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy site/
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

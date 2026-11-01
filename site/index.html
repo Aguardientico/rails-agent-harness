@@ -1,13 +1,4 @@
 <!doctype html>
-<!--
-  Placeholders to fill in before publishing (search for "[" in this file):
-    [EMAIL]          contact address used in the mailto: links
-    [FORMSPREE_ID]   Formspree form ID for the optional contact form (or delete the <form>)
-    [PRICE_SETUP]    price of the setup package
-    [PRICE_WORKSHOP] price of the team workshop
-    [DURATION_SETUP]    typical delivery time of the setup package
-    [DURATION_WORKSHOP] length of the workshop
--->
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -22,6 +13,9 @@
   <meta property="og:description" content="Open-source guard rails for Claude Code, Codex and Cursor in Rails apps: AGENTS.md, bin/agent-check, Claude Code hooks, a migration guard and a review skill.">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:creator" content="@aguardientico">
+  <link rel="alternate" hreflang="en" href="./">
+  <link rel="alternate" hreflang="es" href="es/">
+  <link rel="alternate" hreflang="x-default" href="./">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -41,13 +35,13 @@
           <li><a href="#service">Setup service</a></li>
           <li class="nav-secondary"><a href="#faq">FAQ</a></li>
           <li><a class="nav-gh" href="https://github.com/Aguardientico/rails-agent-harness">GitHub</a></li>
+          <li><a href="es/" hreflang="es" lang="es" aria-label="Versión en español">ES</a></li>
         </ul>
       </nav>
     </div>
   </header>
 
   <main id="main">
-    <!-- Hero -->
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="container hero-grid">
         <div>
@@ -74,7 +68,6 @@
       <span class="ok">create</span>  bin/agent-check
       <span class="ok">create</span>  .claude/settings.json
       <span class="ok">create</span>  .claude/skills/rails-review/SKILL.md</code></pre>
-          <!-- Remove this note once v0.1.0 is published on RubyGems. -->
           <p class="terminal-note">
             Before the first RubyGems release, install from GitHub:
             <code>gem "rails_agent_harness", github: "Aguardientico/rails-agent-harness", group: :development</code>
@@ -83,7 +76,6 @@
       </div>
     </section>
 
-    <!-- Problem -->
     <section class="section" aria-labelledby="problem-title">
       <div class="container">
         <h2 id="problem-title">Agents are fast. In a Rails app they repeat the same mistakes.</h2>
@@ -104,7 +96,6 @@
       </div>
     </section>
 
-    <!-- How it works -->
     <section class="section section-alt" id="how" aria-labelledby="how-title">
       <div class="container">
         <h2 id="how-title">How it works</h2>
@@ -161,7 +152,6 @@ agent-check: <span class="ok">PASS</span> (migrations, rubocop, brakeman, tests 
       </div>
     </section>
 
-    <!-- Features -->
     <section class="section" id="features" aria-labelledby="features-title">
       <div class="container">
         <h2 id="features-title">What you get</h2>
@@ -220,7 +210,6 @@ agent-check: <span class="ok">PASS</span> (migrations, rubocop, brakeman, tests 
       </div>
     </section>
 
-    <!-- Service -->
     <section class="section section-alt" id="service" aria-labelledby="service-title">
       <div class="container">
         <p class="eyebrow">Consulting</p>
@@ -271,7 +260,6 @@ agent-check: <span class="ok">PASS</span> (migrations, rubocop, brakeman, tests 
               Email <a href="mailto:[EMAIL]">[EMAIL]</a>, or use the form.
             </p>
           </div>
-          <!-- Optional: Formspree contact form. Replace [FORMSPREE_ID], or delete this <form>. -->
           <form class="form" action="https://formspree.io/f/[FORMSPREE_ID]" method="POST">
             <div class="field">
               <label for="f-name">Name</label>
@@ -304,7 +292,6 @@ agent-check: <span class="ok">PASS</span> (migrations, rubocop, brakeman, tests 
       </div>
     </section>
 
-    <!-- FAQ -->
     <section class="section" id="faq" aria-labelledby="faq-title">
       <div class="container narrow">
         <h2 id="faq-title">FAQ</h2>

@@ -45,8 +45,10 @@ class SmokePackagedGem
     app = File.join(dir, "app")
 
     run "gem build", %W[gem build rails_agent_harness.gemspec --output #{gem}], chdir: REPO
-    run "gem install the .gem", %W[gem install --local --no-document #{gem}]
+    # Rails first: `gem install --local` resolves the .gem's dependencies (railties) only
+    # from gems already installed, so on a clean Ruby (CI) it fails until Rails is there.
     ensure_rails
+    run "gem install the .gem", %W[gem install --local --no-document #{gem}]
     run "rails new", ["rails", "_#{rails_version}_", "new", app, *RAILS_NEW_OPTIONS]
     run "bundle add", %W[bundle add rails_agent_harness --version #{version} --group development --skip-install], chdir: app
     run "bundle install", %w[bundle install --prefer-local], chdir: app
@@ -79,8 +81,12 @@ class SmokePackagedGem
   end
 
   def ensure_rails
-    _, status = Open3.capture2e("rails", "_#{rails_version}_", "--version")
-    return if status.success?
+    begin
+      _, status = Open3.capture2e("rails", "_#{rails_version}_", "--version")
+      return if status.success?
+    rescue Errno::ENOENT
+      # no `rails` executable at all (a clean Ruby, as in CI)
+    end
 
     run "gem install rails", %W[gem install rails --version ~>\ #{rails_series}.0 --no-document]
     Gem::Specification.reset

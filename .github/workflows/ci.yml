@@ -47,7 +47,7 @@ jobs:
     name: Demo
     runs-on: ubuntu-latest
     env:
-      RAILS_VERSION: "8.1"
+      RAILS_VERSION: main
     steps:
       - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1

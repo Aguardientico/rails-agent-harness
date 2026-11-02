@@ -62,11 +62,11 @@ RSpec.describe ".github/workflows/ci.yml" do
     expect(test_job["steps"].map { |step| step["run"] }).to include("bundle exec rspec")
   end
 
-  it "runs the demo on the latest Ruby / Rails 8.1" do
+  it "runs the demo on the latest Ruby / Rails main" do
     demo = workflow["jobs"]["demo"]
     setup = demo["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }
 
-    expect(demo["env"]).to eq("RAILS_VERSION" => "8.1")
+    expect(demo["env"]).to eq("RAILS_VERSION" => "main")
     expect(setup["with"]).to include("ruby-version" => ".ruby-version", "bundler-cache" => true)
     expect(demo["steps"].map { |step| step["run"] }).to include("demo/run")
   end

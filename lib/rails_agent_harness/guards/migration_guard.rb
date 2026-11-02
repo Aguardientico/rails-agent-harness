@@ -17,7 +17,7 @@ module RailsAgentHarness
     #
     # 2. Checks::Migrations, a heuristic in bin/agent-check for every agent:
     #    1. (migrations) each added migration is named YYYYMMDDHHMMSS_snake_name.rb with a valid
-    #       UTC date, at most 24h in the future;
+    #       UTC timestamp at most 24h in the future;
     #    2. (migrations) it defines `class <SnakeName camelized> < ActiveRecord::Migration[x.y]`
     #       (compared case-insensitively, so acronyms like AddAPIKey pass);
     #    3. (schema) when a migration is added, the app's schema file changed too, and
@@ -116,7 +116,6 @@ module RailsAgentHarness
         ["#{file}: expected `class #{expected} < ActiveRecord::Migration[x.y]` (as bin/rails g migration generates it)"]
       end
 
-      # Rails numbers a migration max(now, previous + 1), so the time digits can roll past 59.
       def valid_timestamp?(digits)
         year, month, day = digits.unpack("a4a2a2").map(&:to_i)
         Date.valid_date?(year, month, day) && digits <= (Time.now.utc + 24 * 60 * 60).strftime("%Y%m%d%H%M%S")

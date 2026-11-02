@@ -49,7 +49,6 @@ module AgentCheckHelper
     path
   end
 
-  # What LC_ALL=C does to Ruby: IO reads (stdin, pipes, files) come back tagged US-ASCII.
   def with_c_locale
     previous = Encoding.default_external
     Encoding.default_external = Encoding::US_ASCII

@@ -76,7 +76,7 @@ bin/agent-check                        the checker
 .claude/skills/rails-review/SKILL.md   the rails-review skill
 ```
 
-It never creates or edits a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`. Claude Code reads `AGENTS.md` when there is no `CLAUDE.md`; if you have one, the generator prints a note so you can delete it or add `@AGENTS.md` to it yourself.
+It never creates or edits a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`. Claude Code 2.1.277+ (2.1.281+ on Bedrock or with telemetry off) reads `AGENTS.md` only when none of those exist, so for each one it finds the generator prints a note on how to import `AGENTS.md` from it (`@AGENTS.md`, or `@../AGENTS.md` in `.claude/CLAUDE.md`) or delete it. A symlink to `AGENTS.md` gets no note.
 
 Commit them, so every developer and agent gets the same setup. Re-running the generator is safe: it only refreshes the marked block in `AGENTS.md`, keeps your own text around it, adds missing hooks without touching your other settings, and keeps an existing `config/agent_harness.yml` and `SKILL.md`.
 

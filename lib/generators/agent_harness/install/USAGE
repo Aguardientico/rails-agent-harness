@@ -11,9 +11,9 @@ Description:
                                 the rails-review skill
 
     CLAUDE.md, .claude/CLAUDE.md and CLAUDE.local.md are never created or
-    edited. Claude Code reads AGENTS.md when there is no CLAUDE.md; if one
-    exists, the generator prints a note so you can delete it or add
-    @AGENTS.md to it yourself.
+    edited. Claude Code 2.1.277+ reads AGENTS.md only when none of them
+    exist, so for each one found the generator prints a note on how to
+    import AGENTS.md from it or delete it.
 
     AGENTS.md gets a block between
     <!-- BEGIN rails_agent_harness --> and <!-- END rails_agent_harness -->

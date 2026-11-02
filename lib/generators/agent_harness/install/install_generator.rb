@@ -29,6 +29,11 @@ module AgentHarness
         }
       }.freeze
       CLAUDE_SETTINGS_SCHEMA = "https://json.schemastore.org/claude-code-settings.json"
+      CLAUDE_MD_HINTS = {
+        "CLAUDE.md" => "add @AGENTS.md to it or delete it",
+        ".claude/CLAUDE.md" => "add @../AGENTS.md to it or delete it",
+        "CLAUDE.local.md" => "add @AGENTS.md to it, or set Project instructions to claude-md-and-agents-md in /config"
+      }.freeze
 
       source_root File.expand_path("templates", __dir__)
 
@@ -57,11 +62,11 @@ module AgentHarness
       end
 
       def note_claude_md
-        found = ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"].select { |path| app_file?(path) }
-        return if found.empty?
+        CLAUDE_MD_HINTS.each do |path, hint|
+          next if !app_file?(path) || File.identical?(File.join(destination_root, path), File.join(destination_root, "AGENTS.md"))
 
-        say_status :note, "#{found.join(", ")} left untouched; Claude Code reads AGENTS.md only when there is no CLAUDE.md, " \
-          "so delete it or add @AGENTS.md to it yourself", :yellow
+          say_status :note, "#{path} left untouched; while it exists Claude Code reads it instead of AGENTS.md, so #{hint}", :yellow
+        end
       end
 
       def create_agent_check_binstub

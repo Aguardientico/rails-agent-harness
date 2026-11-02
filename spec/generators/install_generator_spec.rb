@@ -130,41 +130,38 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
   end
 
   describe "existing CLAUDE.md files" do
-    let(:note) { "note  %s left untouched; Claude Code reads AGENTS.md only when there is no CLAUDE.md, so delete it or add @AGENTS.md to it yourself" }
-
-    %w[CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md].each do |file|
-      it "leaves #{file} byte-identical and prints the note" do
+    {
+      "CLAUDE.md" => "note  CLAUDE.md left untouched; while it exists Claude Code reads it instead of AGENTS.md, so add @AGENTS.md to it or delete it",
+      ".claude/CLAUDE.md" => "note  .claude/CLAUDE.md left untouched; while it exists Claude Code reads it instead of AGENTS.md, so add @../AGENTS.md to it or delete it",
+      "CLAUDE.local.md" => "note  CLAUDE.local.md left untouched; while it exists Claude Code reads it instead of AGENTS.md, so add @AGENTS.md to it, or set Project instructions to claude-md-and-agents-md in /config"
+    }.each do |file, note|
+      it "leaves #{file} byte-identical and prints its note" do
         write(file, "# Team\n\n<!-- BEGIN rails_agent_harness -->\nstale\n<!-- END rails_agent_harness -->\n")
 
         output = run_generator
 
         expect(read(file)).to eq("# Team\n\n<!-- BEGIN rails_agent_harness -->\nstale\n<!-- END rails_agent_harness -->\n")
-        expect(output).to include(format(note, file))
+        expect(output).to include(note)
+        expect(output.scan("note  ").size).to eq(1)
         expect(output).to include("Commit AGENTS.md, config/agent_harness.yml")
         expect(exit_status).to eq(0)
       end
     end
 
-    it "names every file found in one note" do
-      %w[CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md].each { |file| write(file, "Mine.\n") }
+    {"CLAUDE.md" => "AGENTS.md", ".claude/CLAUDE.md" => "../AGENTS.md"}.each do |file, target|
+      it "keeps #{file} linked to AGENTS.md, writes only AGENTS.md and prints no note" do
+        write("AGENTS.md", "Shared.\n")
+        FileUtils.mkdir_p(File.dirname(File.join(root, file)))
+        File.symlink(target, File.join(root, file))
 
-      output = run_generator
+        output = run_generator
 
-      %w[CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md].each { |file| expect(read(file)).to eq("Mine.\n") }
-      expect(output).to include(format(note, "CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md"))
-      expect(output.scan("note  ").size).to eq(1)
-    end
-
-    it "keeps a CLAUDE.md symlink to AGENTS.md and writes only AGENTS.md" do
-      write("AGENTS.md", "Shared.\n")
-      File.symlink("AGENTS.md", File.join(root, "CLAUDE.md"))
-
-      output = run_generator
-
-      expect(File.readlink(File.join(root, "CLAUDE.md"))).to eq("AGENTS.md")
-      expect(read("AGENTS.md")).to include("Shared.", "# Agent instructions")
-      expect(read("AGENTS.md")).not_to include("@AGENTS.md")
-      expect(output).to include(format(note, "CLAUDE.md"))
+        expect(File.readlink(File.join(root, file))).to eq(target)
+        expect(read("AGENTS.md")).to include("Shared.", "# Agent instructions")
+        expect(read("AGENTS.md")).not_to include("@AGENTS.md")
+        expect(output).not_to include("note  ")
+        expect(exit_status).to eq(0)
+      end
     end
   end
 

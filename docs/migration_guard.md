@@ -31,8 +31,9 @@ Codex, Cursor and other agents have no hooks, so `bin/agent-check` (which runs t
 `migrations` check first) applies a heuristic to the files changed since the merge base:
 
 1. **Filename** (`guards.migrations`): each *added* migration is named
-   `YYYYMMDDHHMMSS_snake_name.rb`, and the timestamp is a valid UTC time at most 24 hours in
-   the future.
+   `YYYYMMDDHHMMSS_snake_name.rb`, and the timestamp has a valid UTC date and is at most 24 hours
+   in the future (the time digits are not checked: the Rails generator rolls them past 59,
+   e.g. `…123460`, when several migrations are generated in the same second).
 2. **Class name** (`guards.migrations`): the file defines
    `class <SnakeName camelized> < ActiveRecord::Migration[x.y]`. The comparison ignores
    case, so inflection acronyms such as `AddAPIKey` pass.

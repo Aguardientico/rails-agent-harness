@@ -89,7 +89,7 @@ module RailsAgentHarness
 
     def schema_format
       return :sql if file?("db/structure.sql")
-      return :sql if file?("config/application.rb") && File.read(path("config/application.rb")).match?(SQL_SCHEMA_FORMAT)
+      return :sql if file?("config/application.rb") && File.read(path("config/application.rb"), encoding: "UTF-8").match?(SQL_SCHEMA_FORMAT)
       return :sql if development_database_config&.fetch("schema_format", nil).to_s == "sql"
 
       :ruby
@@ -101,7 +101,7 @@ module RailsAgentHarness
       return @development_database_config if defined?(@development_database_config)
 
       @development_database_config = begin
-        yaml = ERB.new(File.read(path("config/database.yml"))).result
+        yaml = ERB.new(File.read(path("config/database.yml"), encoding: "UTF-8")).result
         development = YAML.safe_load(yaml, aliases: true)&.fetch("development", nil)
         development = development["primary"] if development.is_a?(Hash) && development["primary"].is_a?(Hash)
         development.is_a?(Hash) ? development : nil
@@ -113,7 +113,7 @@ module RailsAgentHarness
     # Gem name => version string, from the lockfile.
     def gems
       @gems ||= begin
-        lockfile = File.read(path("Gemfile.lock"))
+        lockfile = File.read(path("Gemfile.lock"), encoding: "UTF-8")
         Bundler::LockfileParser.new(lockfile).specs.to_h { |spec| [spec.name, spec.version.to_s] }
       rescue SystemCallError, Bundler::LockfileError
         {}

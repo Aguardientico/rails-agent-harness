@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "open3"
+require "rails_agent_harness"
 
 module RailsAgentHarness
   # Runs a command (an argv array, never a shell string) in the project root and captures
@@ -24,9 +25,11 @@ module RailsAgentHarness
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       if separate_stderr
         stdout, stderr, status = Open3.capture3(*command(argv), chdir: @root)
-        output = stdout + stderr
+        stdout = RailsAgentHarness.utf8(stdout)
+        output = stdout + RailsAgentHarness.utf8(stderr)
       else
         output, status = Open3.capture2e(*command(argv), chdir: @root)
+        output = RailsAgentHarness.utf8(output)
         stdout = output
       end
       Result.new(output: output, exit_status: status.exitstatus || 1, duration: elapsed(started), stdout: stdout)

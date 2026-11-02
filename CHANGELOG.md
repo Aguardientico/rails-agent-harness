@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Hooks and `bin/agent-check` no longer crash under a non-UTF-8 locale (`LC_ALL=C`) on
+  non-ASCII hook input, file names, project paths, file contents or tool output: these are read
+  as UTF-8. Before, `hook pre-tool-use` exited 1, which Claude Code treats as non-blocking, so
+  the guarded Write/Edit went through.
+- The migrations check accepts the migration numbers Rails generates when several migrations
+  are created in the same second (e.g. `20261101123460`, seconds past 59); it now checks for a
+  valid date at most 24 hours in the future instead of a strict time round-trip.
+
 ## [0.1.0] - Unreleased
 
 ### Added
@@ -15,9 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deep merge, type checks, warnings for unknown keys), a Railtie, and CI for Ruby 3.3/3.4/4.0
   on Rails 8.1 plus Rails `main`.
 - `bin/rails g agent_harness:install`: detects the app's stack (Rails version, RSpec or
-  Minitest, database, RuboCop/Standard, Brakeman, schema format) and writes `AGENTS.md`,
-  `CLAUDE.md` (importing `AGENTS.md`) and `config/agent_harness.yml`. Re-runs only refresh the
-  marked block and keep user content.
+  Minitest, database, RuboCop/Standard, Brakeman, schema format) and writes `AGENTS.md` and
+  `config/agent_harness.yml`. It never creates or edits any `CLAUDE.md` and prints a note for
+  each one that hides `AGENTS.md` (none for a symlink to it). Re-runs only refresh the marked
+  block and keep user content.
 - `bin/agent-check`: checks the change set since the merge base with RuboCop on changed files,
   Brakeman and the tests mapped to the changed files; plain-text, truncated output; exit
   status 0/1. Claude Code hooks (`PostToolUse` RuboCop on the edited file, `Stop` full check)

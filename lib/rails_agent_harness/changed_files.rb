@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "open3"
+require "rails_agent_harness"
 
 module RailsAgentHarness
   # Files that differ from the merge base with the base branch: committed on this branch,
@@ -66,12 +67,13 @@ module RailsAgentHarness
     # Output of a successful git command, or nil.
     def git(*args)
       output, status = Open3.capture2e("git", "-c", "core.quotepath=false", *args, chdir: @root)
-      status.success? ? output : nil
+      status.success? ? RailsAgentHarness.utf8(output) : nil
     end
 
     # Output of a successful git command; otherwise yields the output to the block.
     def git!(*args)
       output, status = Open3.capture2e("git", "-c", "core.quotepath=false", *args, chdir: @root)
+      output = RailsAgentHarness.utf8(output)
       status.success? ? output : yield(output)
     rescue SystemCallError => e
       yield(e.message)

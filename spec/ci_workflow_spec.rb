@@ -5,7 +5,7 @@ require "yaml"
 RSpec.describe ".github/workflows/ci.yml" do
   subject(:workflow) { YAML.load_file(File.join(DummyAppHelper::GEM_ROOT, ".github/workflows/ci.yml")) }
 
-  let(:triggers) { workflow.fetch(true) { workflow.fetch("on") } }
+  let(:triggers) { workflow.fetch(true) }
   let(:test_job) { workflow["jobs"]["test"] }
 
   def expand_matrix(matrix)
@@ -71,11 +71,24 @@ RSpec.describe ".github/workflows/ci.yml" do
     expect(demo["steps"].map { |step| step["run"] }).to include("demo/run")
   end
 
-  it "builds the gem and lists its files" do
-    runs = workflow["jobs"]["build"]["steps"].map { |step| step["run"] }
+  it "builds the gem and checks its file list" do
+    steps = workflow["jobs"]["build"]["steps"]
+    run = ->(name) { steps.find { |step| step["name"] == name }.fetch("run") }
 
-    expect(runs).to include("gem build rails_agent_harness.gemspec", "tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz")
-    expect(runs.last).to include("grep -vE '^(lib/|LICENSE.txt$|README.md$|CHANGELOG.md$)'")
+    expect(steps.map { |step| step["run"] }).to include("gem build rails_agent_harness.gemspec", "tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz")
+    expect(run["Only lib/**, LICENSE.txt, README.md and CHANGELOG.md are packaged"]).to include("grep -vE '^(lib/|LICENSE.txt$|README.md$|CHANGELOG.md$)'")
+    expect(run["Every tracked lib/ file, LICENSE.txt, README.md and CHANGELOG.md is packaged"]).to eq(
+      "! comm -23 <(git ls-files lib LICENSE.txt README.md CHANGELOG.md | sort) <(tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz | sort) | grep ."
+    )
+  end
+
+  it "installs the packaged gem into a fresh Rails main app on the latest Ruby" do
+    smoke = workflow["jobs"]["smoke"]
+    setup = smoke["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }
+
+    expect(smoke["env"]).to eq("RAILS_VERSION" => "main")
+    expect(setup["with"]).to eq("ruby-version" => ".ruby-version")
+    expect(smoke["steps"].map { |step| step["run"] }).to include("script/smoke_packaged_gem")
   end
 
   it "only tests Ruby versions the gemspec allows" do

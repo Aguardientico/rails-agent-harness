@@ -29,11 +29,16 @@ module AgentHarness
         }
       }.freeze
       CLAUDE_SETTINGS_SCHEMA = "https://json.schemastore.org/claude-code-settings.json"
+      CLAUDE_MD_HINTS = {
+        "CLAUDE.md" => "add @AGENTS.md to it or delete it",
+        ".claude/CLAUDE.md" => "add @../AGENTS.md to it or delete it",
+        "CLAUDE.local.md" => "add @AGENTS.md to it, or set Project instructions to claude-md-and-agents-md in /config"
+      }.freeze
 
       source_root File.expand_path("templates", __dir__)
 
-      desc "Writes AGENTS.md, CLAUDE.md, config/agent_harness.yml and bin/agent-check tuned to this " \
-        "app's stack, and wires bin/agent-check into Claude Code hooks."
+      desc "Writes AGENTS.md, config/agent_harness.yml and bin/agent-check tuned to this app's stack, " \
+        "and wires bin/agent-check into Claude Code hooks. Never touches CLAUDE.md."
 
       class_option :skip_claude_hooks, type: :boolean, default: false,
         desc: "Don't add bin/agent-check hooks to .claude/settings.json"
@@ -56,16 +61,12 @@ module AgentHarness
         upsert_marked_block "AGENTS.md", agents_md
       end
 
-      def create_claude_md
-        if same_file?("CLAUDE.md", "AGENTS.md")
-          return say_status(:skip, "CLAUDE.md (same file as AGENTS.md, which already has the instructions)", :yellow)
+      def note_claude_md
+        CLAUDE_MD_HINTS.each do |path, hint|
+          next if !app_file?(path) || File.identical?(File.join(destination_root, path), File.join(destination_root, "AGENTS.md"))
+
+          say_status :note, "#{path} left untouched; while it exists Claude Code reads it instead of AGENTS.md, so #{hint}", :yellow
         end
-
-        upsert_marked_block "CLAUDE.md", <<~MARKDOWN
-          @AGENTS.md
-
-          This project's agent instructions live in AGENTS.md (shared by Claude Code, Codex and Cursor). Read it before making changes.
-        MARKDOWN
       end
 
       def create_agent_check_binstub
@@ -133,7 +134,7 @@ module AgentHarness
 
       # The files this run manages, for the summary.
       def generated_files
-        files = %w[AGENTS.md CLAUDE.md config/agent_harness.yml bin/agent-check]
+        files = ["AGENTS.md", "config/agent_harness.yml", "bin/agent-check"]
         files << ".claude/settings.json" unless options[:skip_claude_hooks]
         files << ".claude/skills/rails-review/SKILL.md" unless options[:skip_skills]
         files
@@ -148,11 +149,6 @@ module AgentHarness
       def markers_paired?(text)
         markers = text.scan(MARKER)
         markers.any? && markers.each_slice(2).all? { |pair| pair == [BEGIN_MARKER, END_MARKER] }
-      end
-
-      def same_file?(path, other)
-        File.exist?(File.join(destination_root, path)) && File.exist?(File.join(destination_root, other)) &&
-          File.identical?(File.join(destination_root, path), File.join(destination_root, other))
       end
 
       # Writes `content` between BEGIN/END markers in `path`: creates the file, appends the block

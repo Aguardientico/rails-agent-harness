@@ -17,7 +17,7 @@ Coding agents are fast, but in a Rails app they make the same mistakes over and 
 
 rails_agent_harness gives every agent the same guard rails:
 
-- an **`AGENTS.md`** (and a `CLAUDE.md` that imports it) with commands and conventions for *your* app's stack;
+- an **`AGENTS.md`** with commands and conventions for *your* app's stack;
 - **`bin/agent-check`**, one fast command that checks the change set: migrations and schema, RuboCop on changed files, Brakeman, and the tests mapped to the changed files;
 - **Claude Code hooks** that block hand-written migrations and schema edits before they happen, lint every edited file, and run the full check before Claude stops;
 - a **`rails-review` skill** (and the same checklist in `AGENTS.md`) for reviewing changes for N+1 queries, missing indexes, strong parameters, callbacks, transactions and security.
@@ -70,14 +70,15 @@ The generator detects your stack (Rails version, RSpec or Minitest, database, Ru
 
 ```
 AGENTS.md                              agent instructions for this app (inside BEGIN/END markers)
-CLAUDE.md                              imports AGENTS.md for Claude Code (@AGENTS.md)
 config/agent_harness.yml               settings (kept on re-runs unless --force)
 bin/agent-check                        the checker
 .claude/settings.json                  Claude Code hooks (merged into an existing file)
 .claude/skills/rails-review/SKILL.md   the rails-review skill
 ```
 
-Commit them, so every developer and agent gets the same setup. Re-running the generator is safe: it only refreshes the marked block in `AGENTS.md`/`CLAUDE.md`, keeps your own text around it, adds missing hooks without touching your other settings, and keeps an existing `config/agent_harness.yml` and `SKILL.md`.
+It never creates or edits a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`. Claude Code 2.1.277+ (2.1.281+ on Bedrock or with telemetry off) reads `AGENTS.md` only when none of those exist, so for each one it finds the generator prints a note on how to import `AGENTS.md` from it (`@AGENTS.md`, or `@../AGENTS.md` in `.claude/CLAUDE.md`) or delete it. A symlink to `AGENTS.md` gets no note.
+
+Commit them, so every developer and agent gets the same setup. Re-running the generator is safe: it only refreshes the marked block in `AGENTS.md`, keeps your own text around it, adds missing hooks without touching your other settings, and keeps an existing `config/agent_harness.yml` and `SKILL.md`.
 
 Options:
 
@@ -89,7 +90,7 @@ Options:
 
 ## How it works with each agent
 
-**Claude Code** reads `CLAUDE.md`, which imports `AGENTS.md`, and runs these hooks from `.claude/settings.json`:
+**Claude Code** reads `AGENTS.md` and runs these hooks from `.claude/settings.json`:
 
 | Hook | Runs | Effect |
 |---|---|---|

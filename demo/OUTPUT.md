@@ -20,7 +20,6 @@ $ git status --short
 $ bin/rails g agent_harness:install
       create  config/agent_harness.yml
       create  AGENTS.md
-      create  CLAUDE.md
       create  bin/agent-check
       create  .claude/settings.json
       create  .claude/skills/rails-review/SKILL.md

@@ -31,7 +31,7 @@ module RailsAgentHarness
       @stdout = stdout
       @stderr = stderr
       @env = env
-      @root = File.expand_path(root) if root
+      @root = File.expand_path(RailsAgentHarness.utf8(root)) if root
     end
 
     def run(argv)
@@ -181,7 +181,7 @@ module RailsAgentHarness
     end
 
     def read_hook_payload
-      payload = JSON.parse(@stdin.read.to_s)
+      payload = JSON.parse(RailsAgentHarness.utf8(@stdin.read.to_s))
       return payload if payload.is_a?(Hash)
 
       ignore_hook("hook input is not a JSON object")
@@ -208,9 +208,9 @@ module RailsAgentHarness
         dir = @env["CLAUDE_PROJECT_DIR"].to_s
         if dir.empty?
           output, status = Open3.capture2e("git", "rev-parse", "--show-toplevel")
-          dir = status.success? ? output.strip : Dir.pwd
+          dir = status.success? ? RailsAgentHarness.utf8(output).strip : Dir.pwd
         end
-        File.expand_path(dir)
+        File.expand_path(RailsAgentHarness.utf8(dir))
       end
     end
 

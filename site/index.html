@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>rails_agent_harness · Safe AI coding agents for Rails</title>
+  <meta name="description" content="rails_agent_harness is an open-source gem that makes AI coding agents like Claude Code, Codex and Cursor safe and productive in Rails apps. Plus a fixed-scope setup service by its author, Gustavo Gonzalez.">
+  <meta name="author" content="Gustavo Gonzalez">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#b3261e">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="rails_agent_harness · Safe AI coding agents for Rails">
+  <meta property="og:description" content="Open-source guard rails for Claude Code, Codex and Cursor in Rails apps: AGENTS.md, bin/agent-check, Claude Code hooks, a migration guard and a review skill.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:creator" content="@aguardientico">
+  <link rel="alternate" hreflang="en" href="./">
+  <link rel="alternate" hreflang="es" href="es/">
+  <link rel="alternate" hreflang="x-default" href="./">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#top" aria-label="rails_agent_harness, back to top">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="7" fill="currentColor"/><path d="M8 11h16M8 16h16M8 21h16" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+        <span>rails_agent_harness</span>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav-list">
+          <li class="nav-secondary"><a href="#how">How it works</a></li>
+          <li class="nav-secondary"><a href="#features">Features</a></li>
+          <li><a href="#service">Setup service</a></li>
+          <li class="nav-secondary"><a href="#faq">FAQ</a></li>
+          <li><a class="nav-gh" href="https://github.com/Aguardientico/rails-agent-harness">GitHub</a></li>
+          <li><a href="es/" hreflang="es" lang="es" aria-label="Versión en español">ES</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="container hero-grid">
+        <div>
+          <p class="eyebrow">Open source · MIT · Ruby 4.0 · Rails 8.2 edge</p>
+          <h1 id="hero-title">Guard rails for AI coding agents in your Rails app.</h1>
+          <p class="lead">
+            <strong>rails_agent_harness</strong> gives Claude Code, Codex and Cursor the same instructions, checks
+            and guards, so their changes go through RuboCop, Brakeman and your tests, and migrations come from
+            the generator, before the agent says “done”.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="https://github.com/Aguardientico/rails-agent-harness">Get the gem on GitHub</a>
+            <a class="btn btn-secondary" href="#service">Have it set up for you</a>
+          </div>
+        </div>
+        <div class="terminal" role="region" aria-label="Install commands">
+          <div class="terminal-bar" aria-hidden="true"><span></span><span></span><span></span></div>
+<pre tabindex="0"><code><span class="c"># In your Rails app</span>
+<span class="p">$</span> bundle add rails_agent_harness --group development
+<span class="p">$</span> bin/rails g agent_harness:install
+      <span class="ok">create</span>  config/agent_harness.yml
+      <span class="ok">create</span>  AGENTS.md
+      <span class="ok">create</span>  bin/agent-check
+      <span class="ok">create</span>  .claude/settings.json
+      <span class="ok">create</span>  .claude/skills/rails-review/SKILL.md</code></pre>
+          <p class="terminal-note">
+            Before the first RubyGems release, install from GitHub:
+            <code>gem "rails_agent_harness", github: "Aguardientico/rails-agent-harness", group: :development</code>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="problem-title">
+      <div class="container">
+        <h2 id="problem-title">Agents are fast. In a Rails app they repeat the same mistakes.</h2>
+        <div class="cards cards-3">
+          <article class="card">
+            <h3>Hand-written migrations</h3>
+            <p>No timestamp, wrong class name, and direct edits to <code>db/schema.rb</code>, so the schema drifts from the database.</p>
+          </article>
+          <article class="card">
+            <h3>Risky Rails code</h3>
+            <p>N+1 queries, unscoped <code>params</code>, string-interpolated SQL and side effects in callbacks.</p>
+          </article>
+          <article class="card">
+            <h3>“Done” without checking</h3>
+            <p>The task is declared finished without running the linter, the security scanner or the tests.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="how" aria-labelledby="how-title">
+      <div class="container">
+        <h2 id="how-title">How it works</h2>
+        <ol class="steps">
+          <li>
+            <h3>Install and generate</h3>
+            <p>
+              Add the gem and run <code>bin/rails g agent_harness:install</code>. The generator detects your stack
+              (Rails version, RSpec or Minitest, database, RuboCop/Standard, Brakeman, <code>schema.rb</code> or
+              <code>structure.sql</code>) and writes the files above. Commit them so every developer and agent gets
+              the same setup.
+            </p>
+          </li>
+          <li>
+            <h3>The agent runs one command</h3>
+            <p>
+              <code>bin/agent-check</code> checks the files changed since the merge base with your base branch,
+              without booting Rails. Here is the output for a careless change from the
+              <a href="https://github.com/Aguardientico/rails-agent-harness/blob/main/demo/OUTPUT.md">recorded demo</a>:
+            </p>
+          </li>
+        </ol>
+
+        <div class="terminal terminal-wide" role="region" aria-label="Example bin/agent-check output">
+          <div class="terminal-bar" aria-hidden="true"><span></span><span></span><span></span></div>
+<pre tabindex="0"><code><span class="p">$</span> bin/agent-check
+agent-check: <span class="bad">FAIL</span> (migrations, rubocop, brakeman) - 5 files checked in Xs
+[migrations] <span class="bad">FAIL</span> 1 problem
+  db/migrate/add_published_to_posts.rb: does not look generated by bin/rails g migration (expected YYYYMMDDHHMMSS_snake_name.rb)
+[rubocop] <span class="bad">FAIL</span> 1 offense
+  app/models/post.rb:9:5: C: [Correctable] Style/StringLiterals: Prefer double-quoted strings unless you need single quotes to avoid extra backslashes for escaping.
+[brakeman] <span class="bad">FAIL</span> 1 warning
+  app/controllers/posts_controller.rb:5 [High] SQL Injection: Possible SQL injection
+[tests] <span class="skip">SKIP</span> disabled in config/agent_harness.yml
+Fix the issues above, then run bin/agent-check again.
+<span class="c">(exit 1)</span>
+
+<span class="c"># After generating the migration, parameterizing the query and fixing the style offense:</span>
+<span class="p">$</span> bin/agent-check
+agent-check: <span class="ok">PASS</span> (migrations, rubocop, brakeman, tests skipped: disabled in config/agent_harness.yml) - 5 files checked in Xs</code></pre>
+        </div>
+
+        <ol class="steps" start="3">
+          <li>
+            <h3>Claude Code is stopped before it slips</h3>
+            <p>
+              Hooks in <code>.claude/settings.json</code> block a hand-written migration or a schema edit before
+              it happens, lint every edited file, and run the full check before Claude stops. Codex and Cursor
+              read <code>AGENTS.md</code>, which tells them to run <code>bin/agent-check</code> and fix everything
+              it reports.
+            </p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section" id="features" aria-labelledby="features-title">
+      <div class="container">
+        <h2 id="features-title">What you get</h2>
+        <div class="cards cards-3">
+          <article class="card">
+            <h3><code>AGENTS.md</code></h3>
+            <p>
+              Commands and conventions for <em>your</em> app's stack, inside BEGIN/END markers. No <code>CLAUDE.md</code> is
+              created: Claude Code reads <code>AGENTS.md</code> directly, and an existing <code>CLAUDE.md</code> gets an
+              <code>@AGENTS.md</code> import. Re-running the generator only refreshes the marked block and keeps your own text.
+            </p>
+          </article>
+          <article class="card">
+            <h3><code>bin/agent-check</code></h3>
+            <p>
+              One fast command for the change set: migration and schema rules, RuboCop (or Standard) on changed
+              files, Brakeman, and the tests mapped to the changed files (RSpec or Minitest). Plain-text output,
+              one line when everything passes.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Claude Code hooks</h3>
+            <ul class="tight">
+              <li><strong>PreToolUse</strong>: blocks hand-written migrations and schema edits</li>
+              <li><strong>PostToolUse</strong>: RuboCop on the edited file, offenses fed back</li>
+              <li><strong>Stop</strong>: the full check before Claude finishes</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Migration &amp; schema guard</h3>
+            <p>
+              Migrations must come from <code>bin/rails g migration</code>, and the schema only changes through
+              <code>db:migrate</code>. Flags misnamed migrations, a migration without a schema change, and a schema
+              change without a migration.
+            </p>
+          </article>
+          <article class="card">
+            <h3><code>rails-review</code> skill</h3>
+            <p>
+              Ask Claude to “review my changes” or run <code>/rails-review</code>: N+1 queries, missing indexes,
+              strong parameters, callbacks, transactions, security and tests. The same checklist lives in
+              <code>AGENTS.md</code> for other agents.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Configurable, safe to re-run</h3>
+            <p>
+              <code>config/agent_harness.yml</code> sets the base branch, output limits, each check's command and
+              the guards. Tools you don't use are skipped. Existing hooks and settings are kept.
+            </p>
+          </article>
+        </div>
+        <p class="compat">
+          <strong>Compatibility:</strong> Ruby 3.3, 3.4 and 4.0 · Rails <code>main</code> (8.2 edge) and 8.1, all tested in CI · RSpec or Minitest · RuboCop/Standard and Brakeman optional.
+          <a href="https://github.com/Aguardientico/rails-agent-harness#readme">Full documentation in the README</a>.
+        </p>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="service" aria-labelledby="service-title">
+      <div class="container">
+        <p class="eyebrow">Consulting</p>
+        <h2 id="service-title">I set up Claude Code / Codex safely in your Rails app.</h2>
+        <div class="about">
+          <p>
+            I'm <strong>Gustavo Gonzalez</strong>, the author of rails_agent_harness. I've been building software for
+            more than 25 years, much of it in Ruby on Rails. If you want AI coding agents in your team's workflow
+            without letting them loose on your schema, your security or your test suite, I can set it up with you.
+          </p>
+          <p class="muted">The gem is free and MIT licensed. You don't need the service to use it.</p>
+        </div>
+
+        <div class="cards cards-2 offers">
+          <article class="card offer">
+            <h3>Agent setup package</h3>
+            <p class="price"><span class="placeholder">[PRICE_SETUP]</span> <span class="price-note">fixed scope, fixed price</span></p>
+            <ul class="checks">
+              <li>Install and configure rails_agent_harness in your app</li>
+              <li>Tailor <code>AGENTS.md</code> to your team's conventions and commands</li>
+              <li>Tune <code>bin/agent-check</code>: base branch, RuboCop/Standard, Brakeman and test commands</li>
+              <li>Claude Code hooks and the <code>rails-review</code> skill; <code>AGENTS.md</code>-based setup for Codex and Cursor</li>
+              <li>A walkthrough with your team and a short written summary of what was set up</li>
+            </ul>
+            <p class="meta">Typical delivery: <span class="placeholder">[DURATION_SETUP]</span></p>
+            <a class="btn btn-primary" href="mailto:[EMAIL]?subject=Agent%20setup%20package">Ask about the setup</a>
+          </article>
+          <article class="card offer">
+            <h3>Team workshop</h3>
+            <p class="price"><span class="placeholder">[PRICE_WORKSHOP]</span> <span class="price-note">per workshop</span></p>
+            <ul class="checks">
+              <li>Hands-on session for your developers, remote</li>
+              <li>Working with Claude Code and Codex in a Rails codebase</li>
+              <li>Instructions, hooks, checks and skills: what each one is for</li>
+              <li>Reviewing agent changes: N+1 queries, migrations, strong parameters, security</li>
+              <li>Exercises on your own repository or on the gem's demo app</li>
+            </ul>
+            <p class="meta">Length: <span class="placeholder">[DURATION_WORKSHOP]</span></p>
+            <a class="btn btn-secondary" href="mailto:[EMAIL]?subject=Team%20workshop">Ask about the workshop</a>
+          </article>
+        </div>
+
+        <div class="contact" id="contact">
+          <div>
+            <h3>Get in touch</h3>
+            <p>
+              Tell me a little about your app (Rails version, test framework, team size) and which agents you use.
+              Email <a href="mailto:[EMAIL]">[EMAIL]</a>, or use the form.
+            </p>
+          </div>
+          <form class="form" action="https://formspree.io/f/[FORMSPREE_ID]" method="POST">
+            <div class="field">
+              <label for="f-name">Name</label>
+              <input id="f-name" name="name" type="text" autocomplete="name" required>
+            </div>
+            <div class="field">
+              <label for="f-email">Email</label>
+              <input id="f-email" name="email" type="email" autocomplete="email" required>
+            </div>
+            <div class="field field-full">
+              <label for="f-interest">Interested in</label>
+              <select id="f-interest" name="interest">
+                <option>Agent setup package</option>
+                <option>Team workshop</option>
+                <option>Both / not sure yet</option>
+              </select>
+            </div>
+            <div class="field field-full">
+              <label for="f-message">About your app</label>
+              <textarea id="f-message" name="message" rows="4" required></textarea>
+            </div>
+            <input type="hidden" name="_subject" value="rails_agent_harness: setup inquiry">
+            <div class="hp" aria-hidden="true">
+              <label for="f-gotcha">Leave this field empty</label>
+              <input id="f-gotcha" type="text" name="_gotcha" tabindex="-1" autocomplete="off">
+            </div>
+            <button class="btn btn-primary" type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="container narrow">
+        <h2 id="faq-title">FAQ</h2>
+        <details>
+          <summary>Is the gem free?</summary>
+          <p>Yes. The core gem is, and will stay, MIT licensed. Additional paid packs may come later.</p>
+        </details>
+        <details>
+          <summary>Which agents does it support?</summary>
+          <p>
+            Claude Code reads <code>AGENTS.md</code> directly (or through an <code>@AGENTS.md</code> import in an existing <code>CLAUDE.md</code>) and gets hooks and the
+            <code>rails-review</code> skill. Codex and Cursor read <code>AGENTS.md</code>. The generator only installs
+            hooks for Claude Code; for the others, the <code>migrations</code> check in <code>bin/agent-check</code>
+            catches hand-written migrations after the fact.
+          </p>
+        </details>
+        <details>
+          <summary>Does <code>bin/agent-check</code> boot Rails or run the whole suite?</summary>
+          <p>
+            No. It never boots Rails, and it checks the files changed since the merge base with your base branch
+            (committed, staged, unstaged and untracked). Tests run only for test files mapped to the changed files,
+            and only if they exist.
+          </p>
+        </details>
+        <details>
+          <summary>Do I need RuboCop and Brakeman?</summary>
+          <p>No. Both are optional; checks for tools that aren't present are skipped. RSpec and Minitest are both supported.</p>
+        </details>
+        <details>
+          <summary>Will the generator overwrite my files?</summary>
+          <p>
+            Re-running it is safe: it only refreshes the marked block in <code>AGENTS.md</code> (and an existing <code>CLAUDE.md</code>),
+            adds missing hooks without touching your other settings, and keeps an existing
+            <code>config/agent_harness.yml</code> and <code>SKILL.md</code> unless you pass <code>--force</code>.
+          </p>
+        </details>
+        <details>
+          <summary>Which Ruby and Rails versions?</summary>
+          <p>
+            Ruby 3.3, 3.4 and 4.0 with Rails <code>main</code> (8.2 edge) and Rails 8.1, all tested in CI. Ruby 4.0.9
+            and Rails 8.2 edge are the defaults. Only versions still maintained upstream are supported.
+          </p>
+        </details>
+        <details>
+          <summary>Does it work in a monorepo?</summary>
+          <p>
+            Install the harness in the Rails app's directory and start Claude Code there; Claude Code reads
+            <code>.claude/settings.json</code> from the directory it starts in.
+          </p>
+        </details>
+        <details>
+          <summary>What does the setup service need from us?</summary>
+          <p>
+            Access to the repository (or a pairing session on it) and someone on your team to agree conventions
+            with. Scope, access and any confidentiality terms are agreed in writing before we start.
+          </p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>© Gustavo Gonzalez · rails_agent_harness is MIT licensed.</p>
+      <ul class="footer-links">
+        <li><a href="https://github.com/Aguardientico/rails-agent-harness">Gem on GitHub</a></li>
+        <li><a href="https://github.com/Aguardientico">GitHub</a></li>
+        <li><a href="https://x.com/aguardientico">X (@aguardientico)</a></li>
+        <li><a href="https://www.youtube.com/@Aguardientico-AICoding">YouTube</a></li>
+        <li><a href="mailto:[EMAIL]">Email</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

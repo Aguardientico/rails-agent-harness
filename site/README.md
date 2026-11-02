@@ -21,7 +21,7 @@ Once v0.1.0 is on RubyGems, remove the "install from GitHub" note under the inst
 
 ## Publishing
 
-`.github/workflows/pages.yml` deploys `site/` to GitHub Pages and only runs manually (`workflow_dispatch`).
+`.github/workflows/pages.yml` deploys `site/` to GitHub Pages and only runs manually (`workflow_dispatch`). It fails before deploying while any placeholder remains outside this README.
 
 1. Fill in the placeholders above.
 2. Settings > Pages > Build and deployment > Source: "GitHub Actions".

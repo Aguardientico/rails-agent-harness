@@ -21,6 +21,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+      - name: Fail if placeholders remain
+        run: |
+          if grep -rnE '\[[A-Z_]+\]' --exclude=README.md site; then
+            echo "::error::Replace the placeholders above (see site/README.md) before publishing."
+            exit 1
+          fi
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

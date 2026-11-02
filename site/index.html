@@ -45,7 +45,7 @@
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="container hero-grid">
         <div>
-          <p class="eyebrow">Open source · MIT · Rails 8.1</p>
+          <p class="eyebrow">Open source · MIT · Ruby 4.0 · Rails 8.2 edge</p>
           <h1 id="hero-title">Guard rails for AI coding agents in your Rails app.</h1>
           <p class="lead">
             <strong>rails_agent_harness</strong> gives Claude Code, Codex and Cursor the same instructions, checks
@@ -64,7 +64,6 @@
 <span class="p">$</span> bin/rails g agent_harness:install
       <span class="ok">create</span>  config/agent_harness.yml
       <span class="ok">create</span>  AGENTS.md
-      <span class="ok">create</span>  CLAUDE.md
       <span class="ok">create</span>  bin/agent-check
       <span class="ok">create</span>  .claude/settings.json
       <span class="ok">create</span>  .claude/skills/rails-review/SKILL.md</code></pre>
@@ -157,10 +156,11 @@ agent-check: <span class="ok">PASS</span> (migrations, rubocop, brakeman, tests 
         <h2 id="features-title">What you get</h2>
         <div class="cards cards-3">
           <article class="card">
-            <h3><code>AGENTS.md</code> + <code>CLAUDE.md</code></h3>
+            <h3><code>AGENTS.md</code></h3>
             <p>
-              Commands and conventions for <em>your</em> app's stack, inside BEGIN/END markers. <code>CLAUDE.md</code>
-              imports <code>AGENTS.md</code>. Re-running the generator only refreshes the marked block and keeps your own text.
+              Commands and conventions for <em>your</em> app's stack, inside BEGIN/END markers. No <code>CLAUDE.md</code> is
+              created: Claude Code reads <code>AGENTS.md</code> directly, and an existing <code>CLAUDE.md</code> gets an
+              <code>@AGENTS.md</code> import. Re-running the generator only refreshes the marked block and keeps your own text.
             </p>
           </article>
           <article class="card">
@@ -204,7 +204,7 @@ agent-check: <span class="ok">PASS</span> (migrations, rubocop, brakeman, tests 
           </article>
         </div>
         <p class="compat">
-          <strong>Compatibility:</strong> Ruby 3.3, 3.4 and 4.0 · Rails 8.1 (tested in CI), Rails <code>main</code> as an edge job · RSpec or Minitest · RuboCop/Standard and Brakeman optional.
+          <strong>Compatibility:</strong> Ruby 3.3, 3.4 and 4.0 · Rails <code>main</code> (8.2 edge) and 8.1, all tested in CI · RSpec or Minitest · RuboCop/Standard and Brakeman optional.
           <a href="https://github.com/Aguardientico/rails-agent-harness#readme">Full documentation in the README</a>.
         </p>
       </div>
@@ -302,7 +302,7 @@ agent-check: <span class="ok">PASS</span> (migrations, rubocop, brakeman, tests 
         <details>
           <summary>Which agents does it support?</summary>
           <p>
-            Claude Code reads <code>CLAUDE.md</code> (which imports <code>AGENTS.md</code>) and gets hooks and the
+            Claude Code reads <code>AGENTS.md</code> directly (or through an <code>@AGENTS.md</code> import in an existing <code>CLAUDE.md</code>) and gets hooks and the
             <code>rails-review</code> skill. Codex and Cursor read <code>AGENTS.md</code>. The generator only installs
             hooks for Claude Code; for the others, the <code>migrations</code> check in <code>bin/agent-check</code>
             catches hand-written migrations after the fact.
@@ -323,7 +323,7 @@ agent-check: <span class="ok">PASS</span> (migrations, rubocop, brakeman, tests 
         <details>
           <summary>Will the generator overwrite my files?</summary>
           <p>
-            Re-running it is safe: it only refreshes the marked block in <code>AGENTS.md</code>/<code>CLAUDE.md</code>,
+            Re-running it is safe: it only refreshes the marked block in <code>AGENTS.md</code> (and an existing <code>CLAUDE.md</code>),
             adds missing hooks without touching your other settings, and keeps an existing
             <code>config/agent_harness.yml</code> and <code>SKILL.md</code> unless you pass <code>--force</code>.
           </p>
@@ -331,8 +331,8 @@ agent-check: <span class="ok">PASS</span> (migrations, rubocop, brakeman, tests 
         <details>
           <summary>Which Ruby and Rails versions?</summary>
           <p>
-            Ruby 3.3, 3.4 and 4.0 with Rails 8.1, tested in CI, plus Rails <code>main</code> as an allowed-to-fail
-            edge job. Only versions still maintained upstream are supported.
+            Ruby 3.3, 3.4 and 4.0 with Rails <code>main</code> (8.2 edge) and Rails 8.1, all tested in CI. Ruby 4.0.9
+            and Rails 8.2 edge are the defaults. Only versions still maintained upstream are supported.
           </p>
         </details>
         <details>

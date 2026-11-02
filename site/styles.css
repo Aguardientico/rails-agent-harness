@@ -153,7 +153,7 @@ p { margin: 0 0 1em; }
 .terminal-bar { display: flex; gap: 7px; padding: 12px 14px; border-bottom: 1px solid rgb(255 255 255 / 0.06); }
 .terminal-bar span { width: 11px; height: 11px; border-radius: 50%; background: #3a3d44; }
 .terminal pre { margin: 0; padding: 16px 18px 20px; overflow-x: auto; font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.65; }
-.terminal pre:focus-visible { outline-offset: -3px; }
+.terminal pre:focus-visible { outline-color: var(--term-text); outline-offset: -3px; }
 .terminal code { background: none; padding: 0; font-size: inherit; color: inherit; overflow-wrap: normal; }
 .terminal .p { color: var(--term-muted); user-select: none; }
 .terminal .c { color: var(--term-muted); }
@@ -257,7 +257,7 @@ p { margin: 0 0 1em; }
   font-size: 1rem;
   color: var(--text);
   background: var(--bg);
-  border: 1px solid color-mix(in srgb, var(--muted) 55%, transparent);
+  border: 1px solid var(--muted);
   border-radius: 8px;
   padding: 0.6em 0.75em;
 }

@@ -57,13 +57,11 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       expect(read("AGENTS.md")).to end_with("<!-- END rails_agent_harness -->\n")
     end
 
-    it "doesn't create a CLAUDE.md, and says why" do
+    it "creates no CLAUDE.md file and mentions none" do
       output = run_generator
 
-      expect(File).not_to exist(File.join(root, "CLAUDE.md"))
-      expect(File).not_to exist(File.join(root, ".claude/CLAUDE.md"))
-      expect(output).to include("skip  CLAUDE.md (none; Claude Code 2.1.277+ reads AGENTS.md directly)")
-      expect(output).not_to include("CLAUDE.local.md")
+      %w[CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md].each { |file| expect(File).not_to exist(File.join(root, file)) }
+      expect(output).not_to include("CLAUDE")
     end
 
     it "prints the detected profile and next steps" do
@@ -131,61 +129,46 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
     end
   end
 
-  describe "an existing CLAUDE.md" do
-    let(:import_block) do
-      <<~MARKDOWN
-        <!-- BEGIN rails_agent_harness -->
-        @AGENTS.md
+  describe "existing CLAUDE.md files" do
+    let(:note) { "note  %s left untouched; Claude Code reads AGENTS.md only when there is no CLAUDE.md, so delete it or add @AGENTS.md to it yourself" }
 
-        This project's agent instructions live in AGENTS.md (shared by Claude Code, Codex and Cursor). Read it before making changes.
-        <!-- END rails_agent_harness -->
-      MARKDOWN
+    %w[CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md].each do |file|
+      it "leaves #{file} byte-identical and prints the note" do
+        write(file, "# Team\n\n<!-- BEGIN rails_agent_harness -->\nstale\n<!-- END rails_agent_harness -->\n")
+
+        output = run_generator
+
+        expect(read(file)).to eq("# Team\n\n<!-- BEGIN rails_agent_harness -->\nstale\n<!-- END rails_agent_harness -->\n")
+        expect(output).to include(format(note, file))
+        expect(output).to include("Commit AGENTS.md, config/agent_harness.yml")
+        expect(exit_status).to eq(0)
+      end
     end
 
-    it "gets the AGENTS.md import appended, keeping the user's content" do
-      write("CLAUDE.md", "# Team\n\nUse plan mode.\n")
+    it "names every file found in one note" do
+      %w[CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md].each { |file| write(file, "Mine.\n") }
 
       output = run_generator
 
-      expect(read("CLAUDE.md")).to eq("# Team\n\nUse plan mode.\n\n#{import_block}")
-      expect(output).to include("Commit AGENTS.md, CLAUDE.md, config/agent_harness.yml")
+      %w[CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md].each { |file| expect(read(file)).to eq("Mine.\n") }
+      expect(output).to include(format(note, "CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md"))
+      expect(output.scan("note  ").size).to eq(1)
     end
 
-    it "leaves .claude/CLAUDE.md alone, since @AGENTS.md there would import .claude/AGENTS.md" do
-      write(".claude/CLAUDE.md", "Use plan mode.\n")
-
-      run_generator
-
-      expect(read(".claude/CLAUDE.md")).to eq("Use plan mode.\n")
-      expect(File).not_to exist(File.join(root, "CLAUDE.md"))
-    end
-
-    it "refreshes a stale block and is idempotent" do
-      write("CLAUDE.md", "Before.\n\n<!-- BEGIN rails_agent_harness -->\nstale\n<!-- END rails_agent_harness -->\n\nAfter.\n")
-      run_generator
-      first = read("CLAUDE.md")
+    it "keeps a CLAUDE.md symlink to AGENTS.md and writes only AGENTS.md" do
+      write("AGENTS.md", "Shared.\n")
+      File.symlink("AGENTS.md", File.join(root, "CLAUDE.md"))
 
       output = run_generator
 
-      expect(first).to eq("Before.\n\n#{import_block}\nAfter.\n")
-      expect(read("CLAUDE.md")).to eq(first)
-      expect(output).to include("identical  CLAUDE.md")
-      expect(output).not_to include("conflict")
-    end
-
-    it "leaves CLAUDE.local.md alone but points out that it hides AGENTS.md" do
-      write("CLAUDE.local.md", "My prefs.\n")
-
-      output = run_generator
-
-      expect(read("CLAUDE.local.md")).to eq("My prefs.\n")
-      expect(File).not_to exist(File.join(root, "CLAUDE.md"))
-      expect(output).to include("note  CLAUDE.local.md stops Claude Code from reading AGENTS.md; add @AGENTS.md to it")
-      expect(exit_status).to eq(0)
+      expect(File.readlink(File.join(root, "CLAUDE.md"))).to eq("AGENTS.md")
+      expect(read("AGENTS.md")).to include("Shared.", "# Agent instructions")
+      expect(read("AGENTS.md")).not_to include("@AGENTS.md")
+      expect(output).to include(format(note, "CLAUDE.md"))
     end
   end
 
-  describe "AGENTS.md and CLAUDE.md" do
+  describe "AGENTS.md" do
     it "appends the block to an existing AGENTS.md without markers, keeping the user's content" do
       write("AGENTS.md", "# My team rules\n\nAlways be nice.\n")
 
@@ -216,14 +199,13 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
 
     it "is idempotent" do
       write("AGENTS.md", "Mine.\n")
-      write("CLAUDE.md", "Mine too.\n")
       run_generator
-      first = %w[AGENTS.md CLAUDE.md config/agent_harness.yml].to_h { |file| [file, read(file)] }
+      first = %w[AGENTS.md config/agent_harness.yml].to_h { |file| [file, read(file)] }
 
       output = run_generator
 
-      expect(%w[AGENTS.md CLAUDE.md config/agent_harness.yml].to_h { |file| [file, read(file)] }).to eq(first)
-      expect(output).to include("identical  AGENTS.md", "identical  CLAUDE.md")
+      expect(%w[AGENTS.md config/agent_harness.yml].to_h { |file| [file, read(file)] }).to eq(first)
+      expect(output).to include("identical  AGENTS.md")
       expect(output).not_to include("conflict")
     end
 
@@ -243,14 +225,12 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
     it "reports nested markers and a lone END marker" do
       nested = "<!-- BEGIN rails_agent_harness -->\n<!-- BEGIN rails_agent_harness -->\nx\n<!-- END rails_agent_harness -->\n<!-- END rails_agent_harness -->\n"
       write("AGENTS.md", nested)
-      write("CLAUDE.md", "mine\n<!-- END rails_agent_harness -->\n")
 
       run_generator
 
       expect(read("AGENTS.md")).to eq(nested)
-      expect(read("CLAUDE.md")).to eq("mine\n<!-- END rails_agent_harness -->\n")
       expect(exit_status).to eq(1)
-      expect(errors).to include("AGENTS.md: unmatched", "CLAUDE.md: unmatched")
+      expect(errors).to include("AGENTS.md: unmatched")
     end
 
     it "reports a stray BEGIN marker after a complete block" do
@@ -309,19 +289,6 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       run_generator(["--skip"])
 
       expect(read("AGENTS.md")).to include("stale")
-    end
-
-    it "doesn't overwrite AGENTS.md with a self-import when CLAUDE.md links to it" do
-      write("AGENTS.md", "Shared.\n")
-      File.symlink("AGENTS.md", File.join(root, "CLAUDE.md"))
-
-      output = run_generator
-
-      expect(File.symlink?(File.join(root, "CLAUDE.md"))).to be(true)
-      expect(read("AGENTS.md")).to include("Shared.", "# Agent instructions")
-      expect(read("AGENTS.md")).not_to include("@AGENTS.md")
-      expect(output).to include("skip  CLAUDE.md (same file as AGENTS.md")
-      expect(output).to include("Commit AGENTS.md, config/agent_harness.yml")
     end
   end
 

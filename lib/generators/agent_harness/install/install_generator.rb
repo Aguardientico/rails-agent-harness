@@ -33,7 +33,7 @@ module AgentHarness
       source_root File.expand_path("templates", __dir__)
 
       desc "Writes AGENTS.md, config/agent_harness.yml and bin/agent-check tuned to this app's stack, " \
-        "imports AGENTS.md from an existing CLAUDE.md, and wires bin/agent-check into Claude Code hooks."
+        "and wires bin/agent-check into Claude Code hooks. Never touches CLAUDE.md."
 
       class_option :skip_claude_hooks, type: :boolean, default: false,
         desc: "Don't add bin/agent-check hooks to .claude/settings.json"
@@ -56,19 +56,12 @@ module AgentHarness
         upsert_marked_block "AGENTS.md", agents_md
       end
 
-      def update_claude_md
-        return note_missing_claude_md unless app_file?("CLAUDE.md")
+      def note_claude_md
+        found = ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"].select { |path| app_file?(path) }
+        return if found.empty?
 
-        if same_file?("CLAUDE.md", "AGENTS.md")
-          return say_status(:skip, "CLAUDE.md (same file as AGENTS.md, which already has the instructions)", :yellow)
-        end
-
-        @claude_md = "CLAUDE.md"
-        upsert_marked_block "CLAUDE.md", <<~MARKDOWN
-          @AGENTS.md
-
-          This project's agent instructions live in AGENTS.md (shared by Claude Code, Codex and Cursor). Read it before making changes.
-        MARKDOWN
+        say_status :note, "#{found.join(", ")} left untouched; Claude Code reads AGENTS.md only when there is no CLAUDE.md, " \
+          "so delete it or add @AGENTS.md to it yourself", :yellow
       end
 
       def create_agent_check_binstub
@@ -136,17 +129,10 @@ module AgentHarness
 
       # The files this run manages, for the summary.
       def generated_files
-        files = ["AGENTS.md", *@claude_md, "config/agent_harness.yml", "bin/agent-check"]
+        files = ["AGENTS.md", "config/agent_harness.yml", "bin/agent-check"]
         files << ".claude/settings.json" unless options[:skip_claude_hooks]
         files << ".claude/skills/rails-review/SKILL.md" unless options[:skip_skills]
         files
-      end
-
-      def note_missing_claude_md
-        say_status :skip, "CLAUDE.md (none; Claude Code 2.1.277+ reads AGENTS.md directly)", :blue
-        return unless app_file?("CLAUDE.local.md")
-
-        say_status :note, "CLAUDE.local.md stops Claude Code from reading AGENTS.md; add @AGENTS.md to it", :yellow
       end
 
       # Problems reported by steps; #print_summary turns them into a non-zero exit.
@@ -158,11 +144,6 @@ module AgentHarness
       def markers_paired?(text)
         markers = text.scan(MARKER)
         markers.any? && markers.each_slice(2).all? { |pair| pair == [BEGIN_MARKER, END_MARKER] }
-      end
-
-      def same_file?(path, other)
-        File.exist?(File.join(destination_root, path)) && File.exist?(File.join(destination_root, other)) &&
-          File.identical?(File.join(destination_root, path), File.join(destination_root, other))
       end
 
       # Writes `content` between BEGIN/END markers in `path`: creates the file, appends the block

@@ -76,9 +76,9 @@ bin/agent-check                        the checker
 .claude/skills/rails-review/SKILL.md   the rails-review skill
 ```
 
-It doesn't create a `CLAUDE.md`: Claude Code 2.1.277+ reads `AGENTS.md` directly when the project has none. If your app already has a `CLAUDE.md`, Claude Code reads only that file, so the generator adds an `@AGENTS.md` import to it (in a marked block, keeping your text). A `CLAUDE.md` that is a symlink to `AGENTS.md` is left alone. `CLAUDE.local.md` is personal and never edited, but it also stops Claude Code from reading `AGENTS.md`, so the generator tells you to add `@AGENTS.md` to it.
+It never creates or edits a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`. Claude Code reads `AGENTS.md` when there is no `CLAUDE.md`; if you have one, the generator prints a note so you can delete it or add `@AGENTS.md` to it yourself.
 
-Commit them, so every developer and agent gets the same setup. Re-running the generator is safe: it only refreshes the marked block in `AGENTS.md` (and an existing `CLAUDE.md`), keeps your own text around it, adds missing hooks without touching your other settings, and keeps an existing `config/agent_harness.yml` and `SKILL.md`.
+Commit them, so every developer and agent gets the same setup. Re-running the generator is safe: it only refreshes the marked block in `AGENTS.md`, keeps your own text around it, adds missing hooks without touching your other settings, and keeps an existing `config/agent_harness.yml` and `SKILL.md`.
 
 Options:
 
@@ -90,7 +90,7 @@ Options:
 
 ## How it works with each agent
 
-**Claude Code** reads `AGENTS.md` (directly, or through the `@AGENTS.md` import in your `CLAUDE.md`), and runs these hooks from `.claude/settings.json`:
+**Claude Code** reads `AGENTS.md` and runs these hooks from `.claude/settings.json`:
 
 | Hook | Runs | Effect |
 |---|---|---|

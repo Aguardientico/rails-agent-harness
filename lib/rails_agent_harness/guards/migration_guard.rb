@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "time"
+require "date"
 require "rails_agent_harness/paths"
 
 module RailsAgentHarness
@@ -117,10 +117,8 @@ module RailsAgentHarness
       end
 
       def valid_timestamp?(digits)
-        time = Time.strptime("#{digits} UTC", "%Y%m%d%H%M%S %Z")
-        time.strftime("%Y%m%d%H%M%S") == digits && time <= Time.now.utc + 24 * 60 * 60
-      rescue ArgumentError
-        false
+        year, month, day = digits.unpack("a4a2a2").map(&:to_i)
+        Date.valid_date?(year, month, day) && digits <= (Time.now.utc + 24 * 60 * 60).strftime("%Y%m%d%H%M%S")
       end
 
       # Rules 3 and 4.

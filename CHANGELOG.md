@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Hooks and `bin/agent-check` no longer crash under a non-UTF-8 locale (`LC_ALL=C`) on
+  non-ASCII hook input, file names, project paths, file contents or tool output: these are read
+  as UTF-8. Before, `hook pre-tool-use` exited 1, which Claude Code treats as non-blocking, so
+  the guarded Write/Edit went through.
+- The migrations check accepts the migration numbers Rails generates when several migrations
+  are created in the same second (e.g. `20261101123460`, seconds past 59); it now checks for a
+  valid date at most 24 hours in the future instead of a strict time round-trip.
+
 ## [0.1.0] - Unreleased
 
 ### Added

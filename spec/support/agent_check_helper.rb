@@ -49,6 +49,15 @@ module AgentCheckHelper
     path
   end
 
+  # What LC_ALL=C does to Ruby: IO reads (stdin, pipes, files) come back tagged US-ASCII.
+  def with_c_locale
+    previous = Encoding.default_external
+    Encoding.default_external = Encoding::US_ASCII
+    yield
+  ensure
+    Encoding.default_external = previous
+  end
+
   # Runs git in `dir`, raising on failure.
   def git(dir, *args)
     output, status = Open3.capture2e("git", "-c", "user.email=test@example.com", "-c", "user.name=Test", *args, chdir: dir)

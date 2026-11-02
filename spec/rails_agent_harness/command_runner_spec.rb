@@ -23,6 +23,14 @@ RSpec.describe RailsAgentHarness::CommandRunner do
     expect(result.output).to eq("outerr")
   end
 
+  it "returns output as UTF-8 under LC_ALL=C" do
+    script = 'STDOUT.print "caf\xC3\xA9:"; STDOUT.flush; STDERR.print "\xFF"'
+    result = with_c_locale { runner.call("ruby", "-e", script, separate_stderr: true) }
+
+    expect(result.output).to eq("café:\uFFFD")
+    expect(result.stdout).to eq("café:")
+  end
+
   it "passes arguments without a shell" do
     expect(runner.call("ruby", "-e", "print ARGV.first", "$HOME; echo hi").output).to eq("$HOME; echo hi")
   end

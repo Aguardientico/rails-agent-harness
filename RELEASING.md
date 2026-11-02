@@ -23,6 +23,11 @@ Prerequisites: a RubyGems account with MFA enabled, signed in with `gem signin` 
    script/smoke_packaged_gem      # builds the .gem, installs it into a fresh Rails app, runs the generator and bin/agent-check
    ```
 
+   `script/smoke_packaged_gem` exits non-zero and names the failing step. `RAILS_VERSION` picks
+   the app's Rails: a series such as `8.1` (the default, installed with `gem install rails` when
+   missing) or `main` (the `smoke` CI job's choice: Rails from GitHub, app created with
+   `rails new --main`). It needs network access for `rails new` and `bundle install`.
+
 5. Build and inspect the gem from a clean checkout (`spec.files` globs `lib/**/*`, so stray
    untracked files under `lib/` would be packaged):
 

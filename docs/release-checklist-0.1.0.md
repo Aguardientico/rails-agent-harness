@@ -26,7 +26,7 @@ grep -n '^## \[' CHANGELOG.md             # [Unreleased] stays, empty, above [0.
 bundle install
 bundle exec rake                          # rspec + standardrb
 demo/run
-script/smoke_packaged_gem                 # packaged gem in a fresh Rails 8.1 app
+script/smoke_packaged_gem                 # packaged gem in a fresh Rails 8.1 app (RAILS_VERSION=main for edge)
 
 # 4. Commit the date (push to main, or merge it through a PR if main is protected)
 git commit -am "Release 0.1.0"
@@ -99,7 +99,7 @@ exit 1) and step 7. It passed in about 20 s. CI now runs it as the `smoke` job.
 
 - **No test of the packaged gem.** CI built the gem and rejected unexpected files, but nothing
   installed the `.gem` into an app. Added `script/smoke_packaged_gem` and a `smoke` CI job (Ruby
-  3.3, Rails 8.1). The `build` job now also fails if the generator, its templates, `LICENSE.txt`,
+  4.0, Rails `main`). The `build` job now also fails if the generator, its templates, `LICENSE.txt`,
   `README.md` or `CHANGELOG.md` go missing from the gem.
 - **RELEASING.md:** added the `gem signin`/MFA prerequisite and `--otp`, the smoke test in
   step 4, the clean-tree check before `gem build` (`spec.files` globs the filesystem, so
@@ -120,4 +120,5 @@ Checked and already right: gemspec metadata, `spec.files`, and the CI matrix. Ru
   (step 2 above).
 - Another open PR changes the install generator so `CLAUDE.md` is only touched when the app
   already has one. After it merges, step 2 of the fresh-app run will not create `CLAUDE.md`. The
-  smoke script does not check for `CLAUDE.md`, so it works with either behavior.
+  smoke script checks that `AGENTS.md` is written; once that PR is on `main`, it should also fail
+  when `CLAUDE.md` is created.

@@ -79,12 +79,12 @@ RSpec.describe ".github/workflows/ci.yml" do
     )
   end
 
-  it "installs the packaged gem into a fresh Rails 8.1 app on Ruby 3.3" do
+  it "installs the packaged gem into a fresh Rails main app on Ruby 4.0" do
     smoke = workflow["jobs"]["smoke"]
     setup = smoke["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }
 
-    expect(smoke["env"]).to eq("RAILS_VERSION" => "8.1")
-    expect(setup["with"]).to eq("ruby-version" => "3.3")
+    expect(smoke["env"]).to eq("RAILS_VERSION" => "main")
+    expect(setup["with"]).to eq("ruby-version" => "4.0")
     expect(smoke["steps"].map { |step| step["run"] }).to include("script/smoke_packaged_gem")
   end
 

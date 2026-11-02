@@ -1,16 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Release smoke test: builds the gem, installs the .gem file (not the checkout) into the
-# current Ruby, creates a fresh Rails app with `rails new`, adds the gem to it, runs the
-# install generator and checks bin/agent-check and the migration guard from the packaged gem.
-#
-#   script/smoke_packaged_gem
-#
-# RAILS_VERSION picks the Rails release for the app ("8.1" by default); it is installed
-# with `gem install rails` when missing. Needs network access for `rails new`/`bundle install`.
-# Exits non-zero, naming the step, when a step doesn't behave as expected.
-
 require "bundler"
 require "fileutils"
 require "json"
@@ -45,11 +35,8 @@ class SmokePackagedGem
     app = File.join(dir, "app")
 
     run "gem build", %W[gem build rails_agent_harness.gemspec --output #{gem}], chdir: REPO
-    # Rails first: `gem install --local` resolves the .gem's dependencies (railties) only
-    # from gems already installed, so on a clean Ruby (CI) it fails until Rails is there.
-    ensure_rails
-    run "gem install the .gem", %W[gem install --local --no-document #{gem}]
-    run "rails new", ["rails", "_#{rails_version}_", "new", app, *RAILS_NEW_OPTIONS]
+    run "gem install the .gem", %W[gem install --local --ignore-dependencies --no-document #{gem}]
+    rails_new(app)
     run "bundle add", %W[bundle add rails_agent_harness --version #{version} --group development --skip-install], chdir: app
     run "bundle install", %w[bundle install --prefer-local], chdir: app
 
@@ -80,12 +67,29 @@ class SmokePackagedGem
     run "bin/agent-check hook pre-tool-use", %w[bin/agent-check hook pre-tool-use], chdir: app, stdin: payload, expect: 2
   end
 
+  def rails_new(app)
+    return rails_new_from_main(app) if rails_series == "main"
+
+    ensure_rails
+    run "rails new", ["rails", "_#{rails_version}_", "new", app, *RAILS_NEW_OPTIONS]
+  end
+
+  def rails_new_from_main(app)
+    bootstrap = File.join(File.dirname(app), "rails_main")
+    FileUtils.mkdir_p(bootstrap)
+    File.write(File.join(bootstrap, "Gemfile"), <<~RUBY)
+      source "https://rubygems.org"
+      gem "rails", github: "rails/rails", branch: "main"
+    RUBY
+    run "bundle install (Rails main)", %w[bundle install], chdir: bootstrap
+    run "rails new", ["bundle", "exec", "rails", "new", app, "--main", *RAILS_NEW_OPTIONS], chdir: bootstrap
+  end
+
   def ensure_rails
     begin
       _, status = Open3.capture2e("rails", "_#{rails_version}_", "--version")
       return if status.success?
     rescue Errno::ENOENT
-      # no `rails` executable at all (a clean Ruby, as in CI)
     end
 
     run "gem install rails", %W[gem install rails --version ~>\ #{rails_series}.0 --no-document]
@@ -93,7 +97,6 @@ class SmokePackagedGem
     @rails_version = nil
   end
 
-  # Runs argv and checks its exit status; prints the command and returns its output.
   def run(label, argv, chdir: Dir.pwd, stdin: nil, expect: 0)
     puts "$ #{argv.shelljoin}"
     output, status = Open3.capture2e(*argv, chdir: chdir, stdin_data: stdin.to_s)
@@ -110,7 +113,6 @@ class SmokePackagedGem
 
   def rails_series = ENV.fetch("RAILS_VERSION", "8.1")
 
-  # The newest installed Rails in the series, e.g. "8.1.4".
   def rails_version
     @rails_version ||= Gem::Specification
       .select { |spec| spec.name == "railties" && spec.version.segments.first(2).join(".") == rails_series }

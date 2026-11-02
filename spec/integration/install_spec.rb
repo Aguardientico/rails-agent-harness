@@ -6,12 +6,12 @@ RSpec.describe "bin/rails g agent_harness:install" do
       output, status = run_in(app_root, "bin/rails g agent_harness:install", env: {"RAILS_ENV" => "development"})
 
       expect(status).to be_success, output
-      %w[config/agent_harness.yml AGENTS.md CLAUDE.md .claude/skills/rails-review/SKILL.md].each do |file|
+      %w[config/agent_harness.yml AGENTS.md .claude/skills/rails-review/SKILL.md].each do |file|
         expect(File).to exist(File.join(app_root, file)), "expected #{file}\n#{output}"
       end
       expect(output).to include("Rails version:  #{Rails::VERSION::STRING}") if defined?(Rails::VERSION)
       expect(File.read(File.join(app_root, "AGENTS.md"))).to include("# Agent instructions", "- Database: SQLite")
-      expect(File.read(File.join(app_root, "CLAUDE.md"))).to include("@AGENTS.md")
+      expect(File).not_to exist(File.join(app_root, "CLAUDE.md"))
 
       script = <<~RUBY
         require "rails_agent_harness"

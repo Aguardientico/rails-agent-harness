@@ -10,48 +10,79 @@ results of a dry run made on 2026-10-30. The dry run did **not** publish, tag or
 Run from a clean checkout of `main` after this PR and any other release PRs are merged, with
 CI green (`lint`, `test`, `demo`, `build`, `smoke`). Replace `YYYY-MM-DD` with the release date.
 
-```bash
-# 0. Once: a RubyGems account with MFA enabled
-gem signin
+0. Once: a RubyGems account with MFA enabled.
 
-# 1. Up to date and clean
-git checkout main && git pull origin main
-git status --porcelain --ignored lib      # must print nothing (spec.files globs lib/**/*)
+   ```bash
+   gem signin
+   ```
 
-# 2. Set the CHANGELOG date (the compare links at the bottom are already right for 0.1.0)
-sed -i 's/^## \[0.1.0\] - Unreleased$/## [0.1.0] - YYYY-MM-DD/' CHANGELOG.md   # macOS: sed -i ''
-grep -n '^## \[' CHANGELOG.md             # [Unreleased] stays, empty, above [0.1.0] - YYYY-MM-DD
+1. Up to date and clean. `git status` must print nothing, since `spec.files` globs `lib/**/*`.
 
-# 3. Everything passes locally
-bundle install
-bundle exec rake                          # rspec + standardrb
-demo/run
-script/smoke_packaged_gem                 # packaged gem in a fresh Rails 8.1 app (RAILS_VERSION=main for edge)
+   ```bash
+   git checkout main && git pull origin main
+   git status --porcelain --ignored lib
+   ```
 
-# 4. Commit the date (push to main, or merge it through a PR if main is protected)
-git commit -am "Release 0.1.0"
-git push origin main
+2. Set the CHANGELOG date; the compare links at the bottom are already right for 0.1.0. On macOS
+   use `sed -i ''`. `grep` must show an empty `[Unreleased]` above `[0.1.0] - YYYY-MM-DD`.
 
-# 5. Build from that commit and inspect
-gem build rails_agent_harness.gemspec
-tar -xOf rails_agent_harness-0.1.0.gem data.tar.gz | tar -tz
-gem spec rails_agent_harness-0.1.0.gem metadata
+   ```bash
+   sed -i 's/^## \[0.1.0\] - Unreleased$/## [0.1.0] - YYYY-MM-DD/' CHANGELOG.md
+   grep -n '^## \[' CHANGELOG.md
+   ```
 
-# 6. Publish (prompts for the MFA one-time code; or add --otp 123456)
-gem push rails_agent_harness-0.1.0.gem
+3. Everything passes locally: `bundle exec rake` runs rspec and standardrb, and
+   `script/smoke_packaged_gem` installs the packaged gem in a fresh Rails 8.1 app
+   (`RAILS_VERSION=main` for edge).
 
-# 7. Tag the released commit
-git tag v0.1.0
-git push origin v0.1.0
+   ```bash
+   bundle install
+   bundle exec rake
+   demo/run
+   script/smoke_packaged_gem
+   ```
 
-# 8. GitHub release v0.1.0 with the 0.1.0 CHANGELOG section as notes (web UI, or:)
-gh release create v0.1.0 --title v0.1.0 --notes "$(sed -n '/^## \[0.1.0\]/,/^\[Unreleased\]:/p' CHANGELOG.md | sed '1d;$d')"
+4. Commit the date: push to main, or merge it through a PR if main is protected.
 
-# 9. After publishing
-gem info rails_agent_harness --remote     # shows 0.1.0
-# Uncomment the Gem Version badge at the top of README.md, commit, push.
-rm rails_agent_harness-0.1.0.gem
-```
+   ```bash
+   git commit -am "Release 0.1.0"
+   git push origin main
+   ```
+
+5. Build from that commit and inspect.
+
+   ```bash
+   gem build rails_agent_harness.gemspec
+   tar -xOf rails_agent_harness-0.1.0.gem data.tar.gz | tar -tz
+   gem spec rails_agent_harness-0.1.0.gem metadata
+   ```
+
+6. Publish. It prompts for the MFA one-time code, or add `--otp 123456`.
+
+   ```bash
+   gem push rails_agent_harness-0.1.0.gem
+   ```
+
+7. Tag the released commit.
+
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+8. Create the GitHub release v0.1.0 with the 0.1.0 CHANGELOG section as notes, in the web UI or:
+
+   ```bash
+   gh release create v0.1.0 --title v0.1.0 --notes "$(sed -n '/^## \[0.1.0\]/,/^\[Unreleased\]:/p' CHANGELOG.md | sed '1d;$d')"
+   ```
+
+9. After publishing, `gem info` must show 0.1.0. Then uncomment the Gem Version badge at the top
+   of README.md, commit and push.
+
+   ```bash
+   gem info rails_agent_harness --remote
+   rm rails_agent_harness-0.1.0.gem
+   ```
 
 Don't use `bundle exec rake release`: `bundler/gem_tasks` would tag, push and publish in one
 step, in a different order from the above.
@@ -99,8 +130,8 @@ exit 1) and step 7. It passed in about 20 s. CI now runs it as the `smoke` job.
 
 - **No test of the packaged gem.** CI built the gem and rejected unexpected files, but nothing
   installed the `.gem` into an app. Added `script/smoke_packaged_gem` and a `smoke` CI job (Ruby
-  4.0, Rails `main`). The `build` job now also fails if the generator, its templates, `LICENSE.txt`,
-  `README.md` or `CHANGELOG.md` go missing from the gem.
+  4.0, Rails `main`). The `build` job now also fails if any tracked file under `lib/`, `LICENSE.txt`,
+  `README.md` or `CHANGELOG.md` is missing from the gem.
 - **RELEASING.md:** added the `gem signin`/MFA prerequisite and `--otp`, the smoke test in
   step 4, the clean-tree check before `gem build` (`spec.files` globs the filesystem, so
   untracked files under `lib/` would be packaged), `gem spec ... metadata`, a warning not to use

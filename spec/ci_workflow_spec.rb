@@ -5,11 +5,9 @@ require "yaml"
 RSpec.describe ".github/workflows/ci.yml" do
   subject(:workflow) { YAML.load_file(File.join(DummyAppHelper::GEM_ROOT, ".github/workflows/ci.yml")) }
 
-  # YAML 1.1 parses the bare `on:` key as `true`.
-  let(:triggers) { workflow.fetch(true) { workflow.fetch("on") } }
+  let(:triggers) { workflow.fetch(true) }
   let(:test_job) { workflow["jobs"]["test"] }
 
-  # Expands a GitHub Actions matrix (cartesian product + `include`) into jobs.
   def expand_matrix(matrix)
     axes = matrix.except("include", "exclude")
     jobs = axes.values.first.product(*axes.values.drop(1)).map { |combo| axes.keys.zip(combo).to_h }
@@ -73,9 +71,8 @@ RSpec.describe ".github/workflows/ci.yml" do
 
     expect(steps.map { |step| step["run"] }).to include("gem build rails_agent_harness.gemspec", "tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz")
     expect(run["Only lib/**, LICENSE.txt, README.md and CHANGELOG.md are packaged"]).to include("grep -vE '^(lib/|LICENSE.txt$|README.md$|CHANGELOG.md$)'")
-    expect(run["The generator and its templates are packaged"]).to include(
-      "lib/generators/agent_harness/install/install_generator.rb",
-      "lib/generators/agent_harness/install/templates/bin/agent-check.tt"
+    expect(run["Every tracked lib/ file, LICENSE.txt, README.md and CHANGELOG.md is packaged"]).to eq(
+      "! comm -23 <(git ls-files lib LICENSE.txt README.md CHANGELOG.md | sort) <(tar -xOf rails_agent_harness-*.gem data.tar.gz | tar -tz | sort) | grep ."
     )
   end
 

@@ -18,12 +18,13 @@ Prerequisites: a RubyGems account with MFA enabled, signed in with `gem signin` 
 
    ```bash
    bundle install
-   bundle exec rake               # specs + standardrb
+   bundle exec rake
    demo/run
-   script/smoke_packaged_gem      # builds the .gem, installs it into a fresh Rails app, runs the generator and bin/agent-check
+   script/smoke_packaged_gem
    ```
 
-   `script/smoke_packaged_gem` exits non-zero and names the failing step. `RAILS_VERSION` picks
+   `bundle exec rake` runs the specs and standardrb. `script/smoke_packaged_gem` builds the
+   `.gem`, installs it into a fresh Rails app, runs the generator and `bin/agent-check`, exits non-zero and names the failing step. `RAILS_VERSION` picks
    the app's Rails: a series such as `8.1` (the default, installed with `gem install rails` when
    missing) or `main` (the `smoke` CI job's choice: Rails from GitHub, app created with
    `rails new --main`). It needs network access for `rails new` and `bundle install`.
@@ -32,11 +33,15 @@ Prerequisites: a RubyGems account with MFA enabled, signed in with `gem signin` 
    untracked files under `lib/` would be packaged):
 
    ```bash
-   git status --porcelain --ignored lib   # must print nothing
+   git status --porcelain --ignored lib
    gem build rails_agent_harness.gemspec
-   tar -xOf rails_agent_harness-X.Y.Z.gem data.tar.gz | tar -tz   # lib/**, LICENSE.txt, README.md, CHANGELOG.md
-   gem spec rails_agent_harness-X.Y.Z.gem metadata                 # homepage/changelog/bug tracker URIs, rubygems_mfa_required
+   tar -xOf rails_agent_harness-X.Y.Z.gem data.tar.gz | tar -tz
+   gem spec rails_agent_harness-X.Y.Z.gem metadata
    ```
+
+   `git status` must print nothing. The file list holds only `lib/**`, `LICENSE.txt`,
+   `README.md` and `CHANGELOG.md`. The metadata shows the homepage, changelog and bug tracker
+   URIs and `rubygems_mfa_required`.
 
 6. Commit the CHANGELOG/version changes and push them to `main` (through a PR if `main` is
    protected). Build the gem you publish from that commit.

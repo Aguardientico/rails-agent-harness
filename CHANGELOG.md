@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `bin/rails g agent_harness:install` adds `/.claude/settings.local.json` to `.gitignore`
+  (also with `--skip-claude-hooks` and `--skip-skills`), keeping existing entries and an
+  existing rule for it (`.claude/settings.local.json`, `/.claude/settings.local.json` or
+  `**/.claude/settings.local.json`).
+
 ### Fixed
 
 - Hooks and `bin/agent-check` no longer crash under a non-UTF-8 locale (`LC_ALL=C`) on

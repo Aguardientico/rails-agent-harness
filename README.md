@@ -74,11 +74,14 @@ config/agent_harness.yml               settings (kept on re-runs unless --force)
 bin/agent-check                        the checker
 .claude/settings.json                  Claude Code hooks (merged into an existing file)
 .claude/skills/rails-review/SKILL.md   the rails-review skill
+.gitignore                             ignores /.claude/settings.local.json
 ```
 
 It never creates or edits a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`. Claude Code 2.1.277+ (2.1.281+ on Bedrock or with telemetry off) reads `AGENTS.md` only when none of those exist, so for each one it finds the generator prints a note on how to import `AGENTS.md` from it (`@AGENTS.md`, or `@../AGENTS.md` in `.claude/CLAUDE.md`) or delete it. A symlink to `AGENTS.md` gets no note.
 
 Commit them, so every developer and agent gets the same setup. Re-running the generator is safe: it only refreshes the marked block in `AGENTS.md`, keeps your own text around it, adds missing hooks without touching your other settings, and keeps an existing `config/agent_harness.yml` and `SKILL.md`.
+
+The installer also adds `/.claude/settings.local.json` to `.gitignore`, even when hooks and skills are skipped, unless a rule for it is already there (`.claude/settings.local.json`, `/.claude/settings.local.json` or `**/.claude/settings.local.json`). Local Claude Code settings can contain approved commands with secrets and should stay out of version control. Claude Code adds `**/.claude/settings.local.json` to your global git excludes when it creates that file itself, but that doesn't cover a file created by hand, machines or CI without that global exclude, or teammates who never ran Claude Code.
 
 Options:
 

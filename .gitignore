@@ -3,6 +3,7 @@
 /tmp/
 /.rspec_status
 /coverage/
+/.claude/settings.local.json
 /*.gem
 
 # Dummy app

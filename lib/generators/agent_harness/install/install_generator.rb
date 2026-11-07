@@ -28,6 +28,11 @@ module AgentHarness
           "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook stop", "timeout" => 300}]
         }
       }.freeze
+      # .gitignore lines that already ignore the root .claude/settings.local.json. The last one is
+      # what Claude Code adds to the global git excludes when it creates the file itself.
+      CLAUDE_LOCAL_SETTINGS_RULES = %w[
+        .claude/settings.local.json /.claude/settings.local.json **/.claude/settings.local.json
+      ].freeze
       CLAUDE_SETTINGS_SCHEMA = "https://json.schemastore.org/claude-code-settings.json"
       CLAUDE_MD_HINTS = {
         "CLAUDE.md" => "add @AGENTS.md to it or delete it",
@@ -38,7 +43,8 @@ module AgentHarness
       source_root File.expand_path("templates", __dir__)
 
       desc "Writes AGENTS.md, config/agent_harness.yml and bin/agent-check tuned to this app's stack, " \
-        "and wires bin/agent-check into Claude Code hooks. Never touches CLAUDE.md."
+        "wires bin/agent-check into Claude Code hooks, and adds /.claude/settings.local.json to " \
+        ".gitignore. Never touches CLAUDE.md."
 
       class_option :skip_claude_hooks, type: :boolean, default: false,
         desc: "Don't add bin/agent-check hooks to .claude/settings.json"
@@ -78,6 +84,22 @@ module AgentHarness
         return if options[:skip_claude_hooks]
 
         merge_claude_hooks(CLAUDE_HOOKS)
+      end
+
+      def ignore_claude_local_settings
+        path = ".gitignore"
+        full_path = File.join(destination_root, path)
+        existing = File.exist?(full_path) ? File.read(full_path, encoding: "UTF-8") : ""
+        # In .gitignore the last matching line wins, so a later "!rule" re-includes the file.
+        last_match = existing.lines.map(&:strip).reverse.find do |line|
+          CLAUDE_LOCAL_SETTINGS_RULES.include?(line.delete_prefix("!"))
+        end
+        if last_match && !last_match.start_with?("!")
+          return say_status(:identical, path, :blue)
+        end
+
+        separator = (existing.empty? || existing.end_with?("\n")) ? "" : "\n"
+        create_file path, "#{existing}#{separator}/.claude/settings.local.json\n", force: true
       end
 
       # The skill is fully owned by the gem (no markers): an existing, different file is kept
@@ -134,7 +156,7 @@ module AgentHarness
 
       # The files this run manages, for the summary.
       def generated_files
-        files = ["AGENTS.md", "config/agent_harness.yml", "bin/agent-check"]
+        files = ["AGENTS.md", "config/agent_harness.yml", "bin/agent-check", ".gitignore"]
         files << ".claude/settings.json" unless options[:skip_claude_hooks]
         files << ".claude/skills/rails-review/SKILL.md" unless options[:skip_skills]
         files

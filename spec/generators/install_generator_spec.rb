@@ -70,7 +70,70 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       output = run_generator
 
       expect(output).to include("Test framework: rspec", "Database:       unknown", "Schema format:  ruby")
-      expect(output).to include("Next steps:", "Commit AGENTS.md, config/agent_harness.yml, bin/agent-check, .claude/settings.json, .claude/skills/rails-review/SKILL.md.")
+      expect(output).to include("Next steps:", "Commit AGENTS.md, config/agent_harness.yml, bin/agent-check, .gitignore, .claude/settings.json, .claude/skills/rails-review/SKILL.md.")
+    end
+  end
+
+  describe ".gitignore" do
+    it "creates an ignore rule for local Claude settings, leaving shared settings trackable" do
+      run_generator
+
+      expect(read(".gitignore")).to eq("/.claude/settings.local.json\n")
+    end
+
+    ["/log/\n", "/log/"].each do |existing|
+      it "preserves existing entries with #{existing.end_with?("\n") ? "a" : "no"} trailing newline and is idempotent" do
+        write(".gitignore", existing)
+        run_generator
+        run_generator
+
+        expect(read(".gitignore")).to eq("/log/\n/.claude/settings.local.json\n")
+      end
+    end
+
+    AgentHarness::Generators::InstallGenerator::CLAUDE_LOCAL_SETTINGS_RULES.each do |rule|
+      it "keeps an existing #{rule} rule unchanged" do
+        existing = "/log/\n#{rule}\n"
+        write(".gitignore", existing)
+
+        output = run_generator
+
+        expect(read(".gitignore")).to eq(existing)
+        expect(output).to match(/identical\s+\.gitignore/)
+      end
+    end
+
+    it "appends the rule when a later negation re-includes local settings" do
+      existing = "/.claude/settings.local.json\n!/.claude/settings.local.json\n"
+      write(".gitignore", existing)
+
+      run_generator
+      run_generator
+
+      expect(read(".gitignore")).to eq("#{existing}/.claude/settings.local.json\n")
+    end
+
+    it "keeps the file unchanged when the rule follows an earlier negation" do
+      existing = "!/.claude/settings.local.json\n/.claude/settings.local.json\n"
+      write(".gitignore", existing)
+
+      output = run_generator
+
+      expect(read(".gitignore")).to eq(existing)
+      expect(output).to match(/identical\s+\.gitignore/)
+    end
+
+    it "only reports the change with --pretend" do
+      output = run_generator(["--pretend"])
+
+      expect(output).to match(/create\s+\.gitignore/)
+      expect(File).not_to exist(File.join(root, ".gitignore"))
+    end
+
+    it "ignores local settings even when hooks and skills are skipped" do
+      run_generator(%w[--skip-claude-hooks --skip-skills])
+
+      expect(read(".gitignore")).to eq("/.claude/settings.local.json\n")
     end
   end
 

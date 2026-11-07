@@ -103,6 +103,26 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       end
     end
 
+    it "appends the rule when a later negation re-includes local settings" do
+      existing = "/.claude/settings.local.json\n!/.claude/settings.local.json\n"
+      write(".gitignore", existing)
+
+      run_generator
+      run_generator
+
+      expect(read(".gitignore")).to eq("#{existing}/.claude/settings.local.json\n")
+    end
+
+    it "keeps the file unchanged when the rule follows an earlier negation" do
+      existing = "!/.claude/settings.local.json\n/.claude/settings.local.json\n"
+      write(".gitignore", existing)
+
+      output = run_generator
+
+      expect(read(".gitignore")).to eq(existing)
+      expect(output).to match(/identical\s+\.gitignore/)
+    end
+
     it "only reports the change with --pretend" do
       output = run_generator(["--pretend"])
 

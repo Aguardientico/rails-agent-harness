@@ -90,7 +90,11 @@ module AgentHarness
         path = ".gitignore"
         full_path = File.join(destination_root, path)
         existing = File.exist?(full_path) ? File.read(full_path, encoding: "UTF-8") : ""
-        if existing.lines.any? { |line| CLAUDE_LOCAL_SETTINGS_RULES.include?(line.strip) }
+        # In .gitignore the last matching line wins, so a later "!rule" re-includes the file.
+        last_match = existing.lines.map(&:strip).reverse.find do |line|
+          CLAUDE_LOCAL_SETTINGS_RULES.include?(line.delete_prefix("!"))
+        end
+        if last_match && !last_match.start_with?("!")
           return say_status(:identical, path, :blue)
         end
 

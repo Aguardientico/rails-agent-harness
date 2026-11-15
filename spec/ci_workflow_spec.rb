@@ -32,36 +32,42 @@ RSpec.describe ".github/workflows/ci.yml" do
     )
   end
 
+  it "pins the latest Ruby to 4.0.9 in .ruby-version" do
+    expect(File.read(File.join(DummyAppHelper::GEM_ROOT, ".ruby-version")).strip).to eq("4.0.9")
+  end
+
   it "lints with standardrb on the latest Ruby" do
     lint = workflow["jobs"]["lint"]
     setup = lint["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }
 
-    expect(setup["with"]).to include("ruby-version" => "4.0", "bundler-cache" => true)
+    expect(setup["with"]).to include("ruby-version" => ".ruby-version", "bundler-cache" => true)
     expect(lint["steps"].map { |step| step["run"] }).to include("bundle exec standardrb")
   end
 
-  it "tests Ruby 3.3/3.4/4.0 on Rails 8.1 plus an allowed-to-fail Rails main job" do
+  it "tests Ruby 3.3/3.4/4.0 on Rails main and 8.1, all required" do
     jobs = expand_matrix(test_job["strategy"]["matrix"])
 
     expect(test_job["strategy"]["fail-fast"]).to be(false)
     expect(jobs).to contain_exactly(
-      {"ruby" => "3.3", "rails" => "8.1", "experimental" => false},
-      {"ruby" => "3.4", "rails" => "8.1", "experimental" => false},
-      {"ruby" => "4.0", "rails" => "8.1", "experimental" => false},
-      {"ruby" => "4.0", "rails" => "main", "experimental" => true}
+      {"ruby" => "3.3", "rails" => "main"},
+      {"ruby" => "3.4", "rails" => "main"},
+      {"ruby" => "4.0", "rails" => "main"},
+      {"ruby" => "3.3", "rails" => "8.1"},
+      {"ruby" => "3.4", "rails" => "8.1"},
+      {"ruby" => "4.0", "rails" => "8.1"}
     )
-    expect(test_job["continue-on-error"]).to eq("${{ matrix.experimental }}")
+    expect(test_job).not_to have_key("continue-on-error")
     expect(test_job["env"]).to eq("RAILS_VERSION" => "${{ matrix.rails }}")
     expect(test_job["name"]).to start_with("Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}")
     expect(test_job["steps"].map { |step| step["run"] }).to include("bundle exec rspec")
   end
 
-  it "runs the demo on Ruby 3.3 / Rails 8.1" do
+  it "runs the demo on the latest Ruby / Rails main" do
     demo = workflow["jobs"]["demo"]
     setup = demo["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }
 
-    expect(demo["env"]).to eq("RAILS_VERSION" => "8.1")
-    expect(setup["with"]).to include("ruby-version" => "3.3", "bundler-cache" => true)
+    expect(demo["env"]).to eq("RAILS_VERSION" => "main")
+    expect(setup["with"]).to include("ruby-version" => ".ruby-version", "bundler-cache" => true)
     expect(demo["steps"].map { |step| step["run"] }).to include("demo/run")
   end
 
@@ -76,12 +82,12 @@ RSpec.describe ".github/workflows/ci.yml" do
     )
   end
 
-  it "installs the packaged gem into a fresh Rails main app on Ruby 4.0" do
+  it "installs the packaged gem into a fresh Rails main app on the latest Ruby" do
     smoke = workflow["jobs"]["smoke"]
     setup = smoke["steps"].find { |step| step["uses"] == "ruby/setup-ruby@v1" }
 
     expect(smoke["env"]).to eq("RAILS_VERSION" => "main")
-    expect(setup["with"]).to eq("ruby-version" => "4.0")
+    expect(setup["with"]).to eq("ruby-version" => ".ruby-version")
     expect(smoke["steps"].map { |step| step["run"] }).to include("script/smoke_packaged_gem")
   end
 

@@ -183,6 +183,7 @@ module AgentHarness
       def merge_client_config(path, additions)
         full_path = File.join(destination_root, path)
         settings = File.exist?(full_path) ? JSON.parse(File.read(full_path, encoding: "UTF-8")) : {}
+        original = JSON.generate(settings)
         valid = settings.is_a?(Hash) && (!settings.key?("hooks") || settings["hooks"].is_a?(Hash)) &&
           additions.fetch("hooks").keys.all? { |event| !settings.fetch("hooks", {}).key?(event) || settings["hooks"][event].is_a?(Array) } &&
           (!additions.key?("version") || !settings.key?("version") || settings["version"] == additions["version"])
@@ -198,6 +199,8 @@ module AgentHarness
             hooks[event] << entry unless hooks[event].any? { |existing| (client_commands(existing) & commands).any? }
           end
         end
+        return say_status(:identical, path, :blue) if File.exist?(full_path) && JSON.generate(settings) == original
+
         create_file path, JSON.pretty_generate(settings) + "\n", force: true
       rescue JSON::ParserError, ArgumentError
         problems << "#{path}: invalid JSON or hook configuration structure; file left untouched"

@@ -33,6 +33,51 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "client installation"
     end
   end
 
+  it "resolves Codex and Gemini hook commands from a session subdirectory with spaces" do
+    install
+    expect(system("git", "init", "-q", @root)).to be(true)
+    subdir = File.join(@root, "app/models with spaces")
+    FileUtils.mkdir_p(subdir)
+    File.write(File.join(@root, "bin/agent-check"), "#!/bin/sh\nprintf '%s\\n' \"$@\"\n")
+    %w[codex gemini].each do |client|
+      manifest.fetch("clients").fetch(client).fetch("config").fetch("hooks").each_value do |groups|
+        command = groups.first.fetch("hooks").first.fetch("command")
+        output, status = Open3.capture2e({"GEMINI_PROJECT_DIR" => @root}, "sh", "-c", command, chdir: subdir)
+        expect(status).to be_success
+        expect(output.lines.map(&:chomp)).to eq(["client-hook", client, command.split.last])
+      end
+    end
+  end
+
+  it "limits tool hooks to supported file mutations" do
+    clients = manifest.fetch("clients")
+    {"codex" => [%w[PreToolUse PostToolUse], %w[apply_patch Edit Write]],
+     "gemini" => [%w[BeforeTool AfterTool], %w[write_file replace]],
+     "cursor" => [["preToolUse"], %w[Write Delete]]}.each do |client, (events, tools)|
+      events.each do |event|
+        matcher = Regexp.new(clients.fetch(client).fetch("config").fetch("hooks").fetch(event).first.fetch("matcher"))
+        tools.each { |tool| expect(matcher).to match(tool) }
+        %w[Read Grep Shell Bash exec_command run_shell_command read_file].each { |tool| expect(matcher).not_to match(tool) }
+      end
+    end
+  end
+
+  it "preserves formatting and timestamps of already merged client settings" do
+    install
+    paths = manifest.fetch("clients").values.map { |client| File.join(@root, client.fetch("path")) }
+    originals = paths.to_h do |path|
+      contents = JSON.generate(JSON.parse(File.read(path)))
+      File.write(path, contents)
+      File.utime(Time.at(1), Time.at(1), path)
+      [path, contents]
+    end
+    install
+    originals.each do |path, contents|
+      expect(File.read(path)).to eq(contents)
+      expect(File.mtime(path)).to eq(Time.at(1))
+    end
+  end
+
   it "keeps Claude hooks inert when another client imports its settings, and upgrades old commands" do
     legacy = '"${CLAUDE_PROJECT_DIR}"/bin/agent-check hook pre-tool-use'
     path = File.join(@root, ".claude/settings.json")

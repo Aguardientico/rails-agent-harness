@@ -20,15 +20,15 @@ module RailsAgentHarness
 
       payload = JSON.parse(RailsAgentHarness.utf8(input.to_s))
       raise ArgumentError, "hook input must be an object" unless payload.is_a?(Hash)
-      return 0 if phase == "stop" && (payload["stop_hook_active"] == true || payload.fetch("loop_count", 0).to_i > 0)
-      return 0 if client == "cursor" && phase == "stop" && payload["status"] != "completed"
+      return allow_response(client, phase) if phase == "stop" && (payload["stop_hook_active"] == true || payload.fetch("loop_count", 0).to_i > 0)
+      return allow_response(client, phase) if client == "cursor" && phase == "stop" && payload["status"] != "completed"
 
       message = if phase == "pre"
         guard_message(client, payload)
       else
         check_message(phase, client, payload)
       end
-      return 0 if message.nil? || message.empty?
+      return allow_response(client, phase) if message.nil? || message.empty?
 
       @stdout.puts JSON.generate(response(client, phase, message))
       0
@@ -39,10 +39,19 @@ module RailsAgentHarness
 
     private
 
+    def allow_response(client, phase)
+      if client == "cursor" && phase == "pre"
+        @stdout.puts JSON.generate("permission" => "allow")
+      elsif client == "codex" && phase == "stop"
+        @stdout.puts JSON.generate({})
+      end
+      0
+    end
+
     def edits(client, payload)
       tool = payload["tool_name"] || payload["toolName"]
       tools = {"write_file" => "Write", "replace" => "Edit", "create" => "Write", "edit" => "Edit",
-               "str_replace_editor" => "Edit", "Write" => "Write", "Edit" => "Edit"}
+               "str_replace_editor" => "Edit", "Write" => "Write", "Edit" => "Edit", "Delete" => "Edit"}
       return [] unless tools.key?(tool) || tool == "apply_patch"
 
       input = payload["tool_input"] || payload["toolArgs"] || {}
@@ -58,16 +67,24 @@ module RailsAgentHarness
         patch = input["command"] || input["input"] || input["patch"]
         raise ArgumentError unless patch.is_a?(String)
 
-        return patch.scan(/^[ \t]*\*\*\* (Add|Update|Delete) File: (.+)$/).map do |action, path|
+        changes = patch.scan(/^[ \t]*\*\*\* (Add|Update|Delete) File: (.+)$/).map do |action, path|
           [(action == "Add") ? "Write" : "Edit", path.strip]
         end + patch.scan(/^[ \t]*\*\*\* Move to: (.+)$/).map { |path| ["Write", path.first.strip] }
+        return changes.map { |action, path| [action, edit_path(client, payload, path)] }
       end
       normalized = tools.fetch(tool)
       path = input["file_path"] || input["path"] || input["filePath"]
       raise ArgumentError unless path.is_a?(String) && !path.empty?
 
+      path = edit_path(client, payload, path)
       normalized = "Write" unless File.exist?(File.expand_path(path, @root))
       [[normalized, path]]
+    end
+
+    def edit_path(client, payload, path)
+      return path unless client == "codex" && payload["cwd"].is_a?(String)
+
+      File.expand_path(path, payload["cwd"])
     end
 
     def guard_message(client, payload)
@@ -98,7 +115,11 @@ module RailsAgentHarness
     def response(client, phase, message)
       case client
       when "gemini"
-        {"decision" => "deny", "reason" => message}
+        if phase == "post"
+          {"hookSpecificOutput" => {"additionalContext" => message}}
+        else
+          {"decision" => "deny", "reason" => message}
+        end
       when "cursor"
         if phase == "pre"
           {"permission" => "deny", "user_message" => message, "agent_message" => message}

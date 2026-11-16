@@ -49,10 +49,11 @@ RSpec.describe RailsAgentHarness::ClientHook do
     end
 
     it "allows normal files and existing migrations in #{client}" do
-      expect(invoke(client, "pre", edit_payload(client, "app/models/post.rb"))).to eq({})
+      expected = (client == "cursor") ? {"permission" => "allow"} : {}
+      expect(invoke(client, "pre", edit_payload(client, "app/models/post.rb"))).to eq(expected)
       FileUtils.mkdir_p(File.join(@root, "db/migrate"))
       File.write(File.join(@root, "db/migrate/existing.rb"), "")
-      expect(invoke(client, "pre", edit_payload(client, "db/migrate/existing.rb"))).to eq({})
+      expect(invoke(client, "pre", edit_payload(client, "db/migrate/existing.rb"))).to eq(expected)
     end
 
     it "blocks schema writes in #{client}" do
@@ -84,11 +85,56 @@ RSpec.describe RailsAgentHarness::ClientHook do
       payload = (client == "cursor") ? {"file_path" => "app/models/post.rb"} : edit_payload(client, "app/models/post.rb")
       result = invoke(client, "post", payload)
       expect(@status).to eq(0)
-      if client == "cursor"
+      if client == "gemini"
+        expect(result).to eq("hookSpecificOutput" => {"additionalContext" => "lint failed\n"})
+      elsif client == "cursor"
         expect(@err.string).to include("lint failed")
       else
         expect(result.to_s).to include("lint failed")
       end
+    end
+  end
+
+  it "resolves Codex patch paths against the session cwd for guards and lint" do
+    cwd = File.join(@root, "db")
+    payload = edit_payload("codex", "migrate/new.rb").merge("cwd" => cwd)
+    expect(invoke("codex", "pre", payload).dig("hookSpecificOutput", "permissionDecision")).to eq("deny")
+    payload = edit_payload("codex", "schema.rb").merge("cwd" => cwd)
+    expect(invoke("codex", "pre", payload).dig("hookSpecificOutput", "permissionDecision")).to eq("deny")
+    path = File.join(@root, "app/models/post.rb")
+    allow(RailsAgentHarness::CLI).to receive(:start).and_call_original
+    allow(RailsAgentHarness::CLI).to receive(:start).with(["--only", "rubocop", "--files", path], any_args).and_return(0)
+    invoke("codex", "post", edit_payload("codex", "post.rb").merge("cwd" => File.dirname(path)))
+    expect(RailsAgentHarness::CLI).to have_received(:start).with(["--only", "rubocop", "--files", path], any_args)
+  end
+
+  it "prints explicit Cursor permission JSON on allow, including unrelated tools" do
+    [edit_payload("cursor", "app/models/post.rb"), {"tool_name" => "Read"}].each do |payload|
+      invoke("cursor", "pre", payload)
+      expect(@status).to eq(0)
+      expect(JSON.parse(@out.string)).to eq("permission" => "allow")
+    end
+  end
+
+  it "prints Codex Stop JSON both after successful checks and on a guarded retry" do
+    allow(RailsAgentHarness::CLI).to receive(:start).and_call_original
+    allow(RailsAgentHarness::CLI).to receive(:start).with([], any_args).and_return(0)
+    [{}, {"stop_hook_active" => true}].each do |payload|
+      invoke("codex", "stop", payload)
+      expect(@status).to eq(0)
+      expect(JSON.parse(@out.string)).to eq({})
+    end
+    expect(RailsAgentHarness::CLI).to have_received(:start).with([], any_args).once
+  end
+
+  it "guards Cursor schema deletion while allowing deletion of ordinary files and existing migrations" do
+    FileUtils.mkdir_p(File.join(@root, "db/migrate"))
+    File.write(File.join(@root, "db/migrate/existing.rb"), "")
+    payload = {"tool_name" => "Delete", "tool_input" => {"path" => "db/schema.rb"}}
+    expect(invoke("cursor", "pre", payload)["permission"]).to eq("deny")
+    %w[app/models/post.rb db/migrate/existing.rb].each do |path|
+      payload["tool_input"]["path"] = path
+      expect(invoke("cursor", "pre", payload)["permission"]).to eq("allow")
     end
   end
 

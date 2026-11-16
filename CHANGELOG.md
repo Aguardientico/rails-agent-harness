@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Resolve Codex hook commands from the git root and patch paths from the session
+  directory; use Gemini's project root for its hook commands. Emit explicit Cursor
+  pre-tool and Codex Stop allow JSON, and preserve Gemini tool results when adding
+  lint feedback. Filter file-tool hooks, guard Cursor schema deletion and preserve
+  unchanged client settings on reinstall.
+
 - Hooks and `bin/agent-check` no longer crash under a non-UTF-8 locale (`LC_ALL=C`) on
   non-ASCII hook input, file names, project paths, file contents or tool output: these are read
   as UTF-8. Before, `hook pre-tool-use` exited 1, which Claude Code treats as non-blocking, so

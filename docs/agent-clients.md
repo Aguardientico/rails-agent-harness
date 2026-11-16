@@ -3,18 +3,20 @@
 Checked 2026-11-16. This is a documentation contract audit, not a claim of live
 end-to-end certification. Tests use synthetic payloads shaped by these references.
 The packaged-gem smoke test verifies installation and runs the configured hooks
-without logging user/session payloads. Start clients at the Rails app root; project
-trust, hook approval, policy and runtime versions remain client responsibilities.
+without logging user/session payloads. Codex commands resolve the git root (the Rails
+app must be at that root); Gemini commands use `GEMINI_PROJECT_DIR`. Other clients
+should start at the Rails app root. Project trust, hook approval, policy and runtime
+versions remain client responsibilities.
 
 ## Primary clients
 
 | Client | Documented capabilities / configuration | Official references |
 |---|---|---|
 | Claude Code | Skills in `.claude/skills/<name>/SKILL.md`; hooks in `.claude/settings.json`, grouped events, seconds timeout; Write/Edit input `tool_input.file_path`, exit 2 feedback. Instructions via CLAUDE.md or current AGENTS.md discovery. MCP uses project `.mcp.json`, `mcpServers`. | [Skills](https://code.claude.com/docs/en/skills), [hooks](https://code.claude.com/docs/en/hooks), [memory](https://code.claude.com/docs/en/memory), [MCP](https://code.claude.com/docs/en/mcp) |
-| Codex CLI | `.agents/skills/<name>/SKILL.md`, AGENTS.md; `.codex/hooks.json` with grouped PascalCase events, seconds timeout. `apply_patch` input is `tool_input.command`, not a file_path; deny uses `hookSpecificOutput.permissionDecision`. MCP: `.codex/config.toml`, `[mcp_servers.<name>]`. Non-managed hooks need review/trust. | [Skills](https://learn.chatgpt.com/docs/build-skills), [hooks](https://learn.chatgpt.com/docs/hooks), [MCP](https://learn.chatgpt.com/docs/extend/mcp) |
+| Codex CLI | `.agents/skills/<name>/SKILL.md`, AGENTS.md; `.codex/hooks.json` with grouped PascalCase events, seconds timeout. `apply_patch` input is `tool_input.command`, not a file_path; deny uses `hookSpecificOutput.permissionDecision`. File-tool matchers avoid shell/read calls; patch paths resolve against session cwd; Stop always emits JSON. MCP: `.codex/config.toml`, `[mcp_servers.<name>]`. Non-managed hooks need review/trust. | [Skills](https://learn.chatgpt.com/docs/build-skills), [hooks](https://learn.chatgpt.com/docs/hooks), [MCP](https://learn.chatgpt.com/docs/extend/mcp) |
 | Copilot VS Code (Copilot harness), CLI and coding/cloud agent | `.github/skills/<name>/SKILL.md`, `.github/copilot-instructions.md`; `.github/hooks/*.json`, `version: 1`, flat camelCase events, `bash`, `timeoutSec`; input toolName/toolArgs (object or legacy JSON string). Pre-tool denial is top-level permissionDecision; post-tool additionalContext; agentStop decision:block. Cloud supports these events. VS Code's legacy Local harness is a separate format, not generated here. | [Customization](https://docs.github.com/en/copilot/reference/customization-cheat-sheet), [hook protocol](https://docs.github.com/en/copilot/reference/hooks-reference), [VS Code harness migration](https://code.visualstudio.com/docs/agent-customization/hooks) |
-| Cursor Agent | AGENTS.md and `.cursor/skills`; `.cursor/hooks.json`, `version: 1`, flat camelCase events, seconds timeout. Generic preToolUse uses permission deny; afterFileEdit supplies file_path but has no model-feedback response; stop uses followup_message and loop_count. Project hooks run at project root. MCP: `.cursor/mcp.json`, mcpServers. | [Skills](https://cursor.com/docs/skills), [rules](https://cursor.com/docs/rules), [hooks](https://cursor.com/docs/hooks), [MCP](https://cursor.com/docs/mcp) |
-| Gemini CLI | GEMINI.md, `.gemini/skills` (also `.agents/skills` alias); `.gemini/settings.json` grouped hooks with BeforeTool/AfterTool/AfterAgent and **milliseconds** timeout. write_file/replace use file_path. JSON decision deny and reason reject a tool/result/completion respectively. MCP: settings.json mcpServers. | [Skills](https://geminicli.com/docs/cli/skills/), [context](https://geminicli.com/docs/cli/gemini-md/), [hooks](https://geminicli.com/docs/hooks/reference/), [file tools](https://geminicli.com/docs/tools/file-system/), [MCP](https://geminicli.com/docs/tools/mcp-server/) |
+| Cursor Agent | AGENTS.md and `.cursor/skills`; `.cursor/hooks.json`, `version: 1`, flat camelCase events, seconds timeout. Generic preToolUse matches Write/Delete and emits explicit permission allow/deny; afterFileEdit supplies file_path but has no model-feedback response; stop uses followup_message and loop_count. Project hooks run at project root. MCP: `.cursor/mcp.json`, mcpServers. | [Skills](https://cursor.com/docs/skills), [rules](https://cursor.com/docs/rules), [hooks](https://cursor.com/docs/hooks), [MCP](https://cursor.com/docs/mcp) |
+| Gemini CLI | GEMINI.md, `.gemini/skills` (also `.agents/skills` alias); `.gemini/settings.json` grouped hooks with BeforeTool/AfterTool/AfterAgent and **milliseconds** timeout. write_file/replace use file_path. BeforeTool/AfterTool match write_file/replace. BeforeTool and AfterAgent use decision deny and reason; AfterTool appends lint feedback via hookSpecificOutput.additionalContext, preserving the tool result. MCP: settings.json mcpServers. | [Skills](https://geminicli.com/docs/cli/skills/), [context](https://geminicli.com/docs/cli/gemini-md/), [hooks](https://geminicli.com/docs/hooks/reference/), [hook environment](https://geminicli.com/docs/hooks/#environment-variables), [file tools](https://geminicli.com/docs/tools/file-system/), [MCP](https://geminicli.com/docs/tools/mcp-server/) |
 
 Copilot MCP differs by surface: VS Code uses `.vscode/mcp.json` with `servers`
 ([VS Code docs](https://code.visualstudio.com/docs/agent-customization/mcp-servers));
@@ -51,6 +53,14 @@ on completion, and would add a second transport without strengthening the gates.
   clients are not a filesystem security boundary. Unknown tools are ignored;
   malformed recognized arguments report an error. Client error/timeout policy
   may fail open, so CI is still needed.
+- Cursor Delete maps to Edit: generated schemas are protected; existing migrations
+  may be deleted, consistent with Codex patch deletion. Hook lint paths containing
+  commas remain unsupported by the shared `--files` comma-separated interface.
+- Gemini resolves duplicate skill names by precedence: `.agents/skills` wins over
+  `.gemini/skills` within the workspace tier, rather than listing both copies.
+  Native skill copies are retained for compatibility; shared Roo/Amp copies
+  already use `.agents/skills` only.
+- Reinstalling unchanged client hooks preserves settings formatting and timestamps.
 - Stop guards allow the retry to finish, rather than producing unbounded loops.
   Hook success does not replace CI or prove that a client loaded its config.
 - For a live check after approving hooks: ask the client to create a migration

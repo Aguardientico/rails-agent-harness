@@ -26,10 +26,11 @@
               "hooks": [
                 {
                   "type": "command",
-                  "command": "./bin/agent-check client-hook codex pre",
+                  "command": "\"$(git rev-parse --show-toplevel)/bin/agent-check\" client-hook codex pre",
                   "timeout": 60
                 }
-              ]
+              ],
+              "matcher": "^(apply_patch|Edit|Write)$"
             }
           ],
           "PostToolUse": [
@@ -37,10 +38,11 @@
               "hooks": [
                 {
                   "type": "command",
-                  "command": "./bin/agent-check client-hook codex post",
+                  "command": "\"$(git rev-parse --show-toplevel)/bin/agent-check\" client-hook codex post",
                   "timeout": 60
                 }
-              ]
+              ],
+              "matcher": "^(apply_patch|Edit|Write)$"
             }
           ],
           "Stop": [
@@ -48,7 +50,7 @@
               "hooks": [
                 {
                   "type": "command",
-                  "command": "./bin/agent-check client-hook codex stop",
+                  "command": "\"$(git rev-parse --show-toplevel)/bin/agent-check\" client-hook codex stop",
                   "timeout": 300
                 }
               ]
@@ -93,7 +95,8 @@
           "preToolUse": [
             {
               "command": "./bin/agent-check client-hook cursor pre",
-              "timeout": 60
+              "timeout": 60,
+              "matcher": "^(Write|Delete)$"
             }
           ],
           "afterFileEdit": [
@@ -121,10 +124,11 @@
               "hooks": [
                 {
                   "type": "command",
-                  "command": "./bin/agent-check client-hook gemini pre",
+                  "command": "\"${GEMINI_PROJECT_DIR}/bin/agent-check\" client-hook gemini pre",
                   "timeout": 60000
                 }
-              ]
+              ],
+              "matcher": "^(write_file|replace)$"
             }
           ],
           "AfterTool": [
@@ -132,10 +136,11 @@
               "hooks": [
                 {
                   "type": "command",
-                  "command": "./bin/agent-check client-hook gemini post",
+                  "command": "\"${GEMINI_PROJECT_DIR}/bin/agent-check\" client-hook gemini post",
                   "timeout": 60000
                 }
-              ]
+              ],
+              "matcher": "^(write_file|replace)$"
             }
           ],
           "AfterAgent": [
@@ -143,7 +148,7 @@
               "hooks": [
                 {
                   "type": "command",
-                  "command": "./bin/agent-check client-hook gemini stop",
+                  "command": "\"${GEMINI_PROJECT_DIR}/bin/agent-check\" client-hook gemini stop",
                   "timeout": 300000
                 }
               ]

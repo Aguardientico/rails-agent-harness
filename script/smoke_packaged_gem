@@ -71,7 +71,9 @@ class SmokePackagedGem
 
   def verify_client_hooks(app, gem_path)
     manifest = JSON.parse(File.read(File.join(gem_path, "lib/generators/agent_harness/install/templates/clients.json")))
-    path = "db/migrate/20991231000009_direct_write.rb"
+    path = File.join(app, "db/migrate/20991231000009_direct_write.rb")
+    subdir = File.join(app, "app/models")
+    FileUtils.mkdir_p(subdir)
     payloads = {
       "codex" => {"tool_name" => "apply_patch", "tool_input" => {"command" => "*** Begin Patch\n*** Add File: #{path}\n+x\n*** End Patch"}},
       "copilot" => {"toolName" => "create", "toolArgs" => JSON.generate("path" => path)},
@@ -83,7 +85,10 @@ class SmokePackagedGem
       group = config.fetch("hooks").values.first.first
       hook = group.fetch("hooks", [group]).first
       command = hook["command"] || hook.fetch("bash")
-      output = run "#{client} pre-edit hook", Shellwords.split(command), chdir: app, stdin: JSON.generate(payloads.fetch(client))
+      cwd = %w[codex gemini].include?(client) ? subdir : app
+      payload = payloads.fetch(client).merge("cwd" => cwd)
+      output = run "#{client} pre-edit hook", ["sh", "-c", command], chdir: cwd,
+        stdin: JSON.generate(payload), env: {"GEMINI_PROJECT_DIR" => app}
       decision = JSON.parse(output)
       denied = case client
       when "codex" then decision.dig("hookSpecificOutput", "permissionDecision") == "deny"
@@ -125,9 +130,9 @@ class SmokePackagedGem
     @rails_version = nil
   end
 
-  def run(label, argv, chdir: Dir.pwd, stdin: nil, expect: 0)
+  def run(label, argv, chdir: Dir.pwd, stdin: nil, expect: 0, env: {})
     puts "$ #{argv.shelljoin}"
-    output, status = Open3.capture2e(*argv, chdir: chdir, stdin_data: stdin.to_s)
+    output, status = Open3.capture2e(env, *argv, chdir: chdir, stdin_data: stdin.to_s)
     return output if status.exitstatus == expect
 
     fail!("#{label}: exit status #{status.exitstatus}, expected #{expect}\n#{output.lines.last(30).join}")

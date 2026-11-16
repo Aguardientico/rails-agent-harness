@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Install portable rails-review skills and native hooks for Codex CLI, Copilot
+  harness (VS Code and coding agent), Cursor Agent and Gemini CLI alongside Claude.
+- Add Cline, Roo, Amp and JetBrains instruction/skill adapters and an opt-in Aider
+  auto-test configuration, a client manifest and installation digest verification.
+
 ### Added
 
 - `bin/rails g agent_harness:install` adds `/.claude/settings.local.json` to `.gitignore`

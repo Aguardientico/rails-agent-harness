@@ -58,14 +58,14 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "bin/agent-check and 
         "hooks" => {
           "PreToolUse" => [{
             "matcher" => "Edit|Write",
-            "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use", "timeout" => 10}]
+            "hooks" => [{"type" => "command", "command" => "if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use ; fi", "timeout" => 10}]
           }],
           "PostToolUse" => [{
             "matcher" => "Edit|Write",
-            "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use", "timeout" => 60}]
+            "hooks" => [{"type" => "command", "command" => "if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use ; fi", "timeout" => 60}]
           }],
           "Stop" => [{
-            "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook stop", "timeout" => 300}]
+            "hooks" => [{"type" => "command", "command" => "if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook stop ; fi", "timeout" => 300}]
           }]
         }
       )
@@ -83,8 +83,8 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "bin/agent-check and 
 
       expect(settings["permissions"]).to eq("allow" => ["Bash(bin/rails test:*)"])
       expect(settings).not_to have_key("$schema")
-      expect(hook_commands("PostToolUse")).to eq(["audit.sh", "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use"])
-      expect(hook_commands("Stop")).to eq(["\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook stop"])
+      expect(hook_commands("PostToolUse")).to eq(["audit.sh", "if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use ; fi"])
+      expect(hook_commands("Stop")).to eq(["if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook stop ; fi"])
     end
 
     it "is idempotent" do
@@ -106,7 +106,7 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "bin/agent-check and 
       run_generator
       run_generator
 
-      expect(hook_commands("PreToolUse")).to eq(["block-rm.sh", "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use"])
+      expect(hook_commands("PreToolUse")).to eq(["block-rm.sh", "if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use ; fi"])
       expect(settings["hooks"]["PreToolUse"].last).to include("matcher" => "Edit|Write")
     end
 
@@ -119,7 +119,7 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "bin/agent-check and 
       run_generator
 
       expect(hook_commands("Stop")).to eq(["bin/agent-check hook stop --verbose"])
-      expect(hook_commands("PostToolUse")).to eq(["\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use"])
+      expect(hook_commands("PostToolUse")).to eq(["if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use ; fi"])
     end
 
     it "leaves invalid JSON untouched and exits non-zero" do
@@ -147,7 +147,7 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "bin/agent-check and 
       output = run_generator(["--skip-claude-hooks"])
 
       expect(File).not_to exist(settings_path)
-      expect(output).to include("Commit AGENTS.md, config/agent_harness.yml, bin/agent-check, .gitignore, .claude/skills/rails-review/SKILL.md.")
+      expect(output).to include("Commit AGENTS.md, config/agent_harness.yml, bin/agent-check, .gitignore, .claude/skills/rails-review/SKILL.md,")
       expect(File).to exist(File.join(root, "bin/agent-check"))
     end
   end

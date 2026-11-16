@@ -10,7 +10,7 @@ hand-edited schema drifts from the database. rails_agent_harness stops this in t
 
 ```json
 { "matcher": "Edit|Write",
-  "hooks": [{ "type": "command", "command": "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use", "timeout": 10 }] }
+  "hooks": [{ "type": "command", "command": "if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use ; fi", "timeout": 10 }] }
 ```
 
 Before each `Write` or `Edit`, `bin/agent-check hook pre-tool-use` reads the tool call and:
@@ -25,10 +25,15 @@ Before each `Write` or `Edit`, `bin/agent-check hook pre-tool-use` reads the too
 A blocked call exits with status 2 and the reason on stderr; Claude Code cancels the tool
 call and shows the reason to Claude. The hook runs no git commands or subprocesses.
 
+Codex CLI, Copilot harness (VS Code and coding agent), Cursor Agent and Gemini CLI
+also receive native pre-edit adapters, plus post-edit/stop checks. Their protocols
+and coverage differ; see [client capabilities](agent-clients.md). Shell writes and
+unrecognized tools remain outside pre-edit coverage.
+
 ## 2. Every agent: the `migrations` check in `bin/agent-check`
 
-Codex, Cursor and other agents have no hooks, so `bin/agent-check` (which runs the
-`migrations` check first) applies a heuristic to the files changed since the merge base:
+All clients also use `bin/agent-check`, which runs the
+`migrations` check first and applies a heuristic to the files changed since the merge base:
 
 1. **Filename** (`guards.migrations`): each *added* migration is named
    `YYYYMMDDHHMMSS_snake_name.rb`, and the timestamp has a valid UTC date and is at most 24 hours

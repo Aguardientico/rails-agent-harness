@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
 require "erb"
+require "digest"
 require "json"
 require "rails/generators"
 require "rails_agent_harness"
 require "rails_agent_harness/app_detector"
+require "rails_agent_harness/installation"
 
 module AgentHarness
   module Generators
@@ -15,19 +17,8 @@ module AgentHarness
       MARKER = /#{Regexp.escape(BEGIN_MARKER)}|#{Regexp.escape(END_MARKER)}/
 
       # Our Claude Code hook entries, by event. The command identifies an entry when merging.
-      CLAUDE_HOOKS = {
-        "PreToolUse" => {
-          "matcher" => "Edit|Write",
-          "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use", "timeout" => 10}]
-        },
-        "PostToolUse" => {
-          "matcher" => "Edit|Write",
-          "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use", "timeout" => 60}]
-        },
-        "Stop" => {
-          "hooks" => [{"type" => "command", "command" => "\"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook stop", "timeout" => 300}]
-        }
-      }.freeze
+      CLAUDE_HOOKS = JSON.parse(File.read(File.expand_path("templates/clients.json", __dir__))).fetch("claude_hooks").freeze
+
       # .gitignore lines that already ignore the root .claude/settings.local.json. The last one is
       # what Claude Code adds to the global git excludes when it creates the file itself.
       CLAUDE_LOCAL_SETTINGS_RULES = %w[
@@ -43,13 +34,17 @@ module AgentHarness
       source_root File.expand_path("templates", __dir__)
 
       desc "Writes AGENTS.md, config/agent_harness.yml and bin/agent-check tuned to this app's stack, " \
-        "wires bin/agent-check into Claude Code hooks, and adds /.claude/settings.local.json to " \
+        "wires native client hooks and portable skills, and adds /.claude/settings.local.json to " \
         ".gitignore. Never touches CLAUDE.md."
 
       class_option :skip_claude_hooks, type: :boolean, default: false,
         desc: "Don't add bin/agent-check hooks to .claude/settings.json"
       class_option :skip_skills, type: :boolean, default: false,
-        desc: "Don't write Claude Code skills (.claude/skills/)"
+        desc: "Don't write client rails-review skills"
+      class_option :force_client_files, type: :boolean, default: false,
+        desc: "Replace generated skills and Aider config without overwriting agent_harness.yml"
+      class_option :skip_client_hooks, type: :boolean, default: false,
+        desc: "Don't add Codex, Copilot, Cursor or Gemini hooks"
 
       # Exit non-zero when a step reports a problem (see #print_summary), like Rails' own
       # migration generator.
@@ -108,14 +103,46 @@ module AgentHarness
       def create_review_skill
         return if options[:skip_skills]
 
-        path = ".claude/skills/rails-review/SKILL.md"
-        full_path = File.join(destination_root, path)
-        content = render_template("claude/skills/rails-review/SKILL.md.tt")
-        if File.exist?(full_path) && File.read(full_path, encoding: "UTF-8") != content && !options[:force]
-          return say_status(:exists, "#{path} (differs; kept, use --force to overwrite)", :blue)
+        client_manifest.fetch("skills").each do |path|
+          write_owned_file(path, render_template("skills/rails-review/SKILL.md.tt"))
         end
+      end
 
-        create_file path, content, force: true
+      def configure_clients
+        instruction_paths.each { |path| upsert_marked_block(path, agents_md) }
+        unless options[:skip_client_hooks]
+          client_manifest.fetch("clients").each_value do |client|
+            merge_client_config(client.fetch("path"), client.fetch("config"))
+          end
+        end
+        return if problems.any?
+
+        client_manifest.fetch("owned_files").each { |path, content| write_owned_file(path, content) }
+        return if options[:pretend]
+
+        files = client_manifest.fetch("owned_files").transform_values { |content| Digest::SHA256.hexdigest(content) }
+        files["bin/agent-check"] = Digest::SHA256.hexdigest(render_template("bin/agent-check.tt"))
+        unless options[:skip_skills]
+          digest = Digest::SHA256.hexdigest(render_template("skills/rails-review/SKILL.md.tt"))
+          client_manifest.fetch("skills").each { |path| files[path] = digest }
+        end
+        instructions = (instruction_paths + ["AGENTS.md"]).to_h do |path|
+          [path, RailsAgentHarness::Installation.instruction_digest(File.read(File.join(destination_root, path), encoding: "UTF-8"))]
+        end
+        hooks = {}
+        unless options[:skip_client_hooks]
+          client_manifest.fetch("clients").each_value do |client|
+            hooks[client.fetch("path")] = client.fetch("config").fetch("hooks").transform_values { |groups| groups.flat_map { |group| client_commands(group) } }
+          end
+        end
+        unless options[:skip_claude_hooks]
+          hooks[".claude/settings.json"] = CLAUDE_HOOKS.transform_values do |group|
+            [group.fetch("hooks").first.fetch("command")[%r{bin/agent-check hook [\w-]+}]]
+          end
+        end
+        contents = {"version" => 1, "files" => files, "instructions" => instructions, "hooks" => hooks, "required" => ["config/agent_harness.yml"]}
+        create_file "config/agent_harness_clients.json", JSON.pretty_generate(contents) + "\n", force: true
+        problems.concat(RailsAgentHarness::Installation.verify(destination_root))
       end
 
       def print_summary
@@ -141,6 +168,52 @@ module AgentHarness
 
       private
 
+      def client_manifest
+        @client_manifest ||= JSON.parse(File.read(File.join(self.class.source_root, "clients.json")))
+      end
+
+      def write_owned_file(path, content)
+        full_path = File.join(destination_root, path)
+        if File.exist?(full_path) && File.read(full_path, encoding: "UTF-8") != content && !options[:force] && !options[:force_client_files]
+          return say_status(:exists, "#{path} (differs; kept, use --force-client-files to overwrite)", :blue)
+        end
+        create_file path, content, force: true
+      end
+
+      def merge_client_config(path, additions)
+        full_path = File.join(destination_root, path)
+        settings = File.exist?(full_path) ? JSON.parse(File.read(full_path, encoding: "UTF-8")) : {}
+        original = JSON.generate(settings)
+        valid = settings.is_a?(Hash) && (!settings.key?("hooks") || settings["hooks"].is_a?(Hash)) &&
+          additions.fetch("hooks").keys.all? { |event| !settings.fetch("hooks", {}).key?(event) || settings["hooks"][event].is_a?(Array) } &&
+          (!additions.key?("version") || !settings.key?("version") || settings["version"] == additions["version"])
+        unless valid
+          raise ArgumentError, "unexpected hook configuration structure"
+        end
+        additions.each { |key, value| settings[key] ||= value unless key == "hooks" }
+        hooks = settings["hooks"] ||= {}
+        additions.fetch("hooks").each do |event, entries|
+          hooks[event] ||= []
+          entries.each do |entry|
+            commands = client_commands(entry)
+            hooks[event] << entry unless hooks[event].any? { |existing| (client_commands(existing) & commands).any? }
+          end
+        end
+        return say_status(:identical, path, :blue) if File.exist?(full_path) && JSON.generate(settings) == original
+
+        create_file path, JSON.pretty_generate(settings) + "\n", force: true
+      rescue JSON::ParserError, ArgumentError
+        problems << "#{path}: invalid JSON or hook configuration structure; file left untouched"
+      end
+
+      def instruction_paths
+        client_manifest.fetch("instructions") + client_manifest.fetch("optional_instructions").select { |path| app_file?(path) }
+      end
+
+      def client_commands(group)
+        RailsAgentHarness::Installation.commands(group)
+      end
+
       def profile
         @profile ||= RailsAgentHarness::AppDetector.new(destination_root).detect
       end
@@ -158,7 +231,9 @@ module AgentHarness
       def generated_files
         files = ["AGENTS.md", "config/agent_harness.yml", "bin/agent-check", ".gitignore"]
         files << ".claude/settings.json" unless options[:skip_claude_hooks]
-        files << ".claude/skills/rails-review/SKILL.md" unless options[:skip_skills]
+        files += client_manifest.fetch("skills") unless options[:skip_skills]
+        files += instruction_paths + ["config/agent_harness_clients.json", ".aider.agent-harness.yml"]
+        files += client_manifest.fetch("clients").values.map { |client| client.fetch("path") } unless options[:skip_client_hooks]
         files
       end
 
@@ -220,19 +295,34 @@ module AgentHarness
           return say_status(:error, "#{path}: unexpected structure under \"hooks\"; add the bin/agent-check hooks by hand", :red)
         end
 
+        migrated = false
+        entries.each do |event, entry|
+          command = entry.fetch("hooks").first.fetch("command")
+          legacy = command[/"\$\{CLAUDE_PROJECT_DIR\}"\/bin\/agent-check hook [\w-]+/]
+          hooks[event].each do |group|
+            next unless group.is_a?(Hash) && group["hooks"].is_a?(Array)
+
+            group["hooks"].each do |hook|
+              next unless hook.is_a?(Hash) && hook["command"] == legacy
+
+              hook["command"] = command
+              migrated = true
+            end
+          end
+        end
         added = entries.reject { |event, entry| hook_command?(hooks[event], entry) }
-        return say_status(:identical, path, :blue) if added.empty?
+        return say_status(:identical, path, :blue) if added.empty? && !migrated
 
         added.each { |event, entry| hooks[event] << entry }
         create_file path, "#{JSON.pretty_generate(settings)}\n", force: true
-      rescue JSON::ParserError => e
+      rescue JSON::ParserError
         problems << "#{path}: invalid JSON; add the bin/agent-check hooks by hand"
-        say_status :error, "#{path} is not valid JSON (#{e.message.lines.first.strip}); add the bin/agent-check hooks by hand", :red
+        say_status :error, "#{path} is not valid JSON; add the bin/agent-check hooks by hand", :red
       end
 
       # Whether any hook in `groups` already runs the `bin/agent-check hook <event>` of `entry`.
       def hook_command?(groups, entry)
-        signature = entry["hooks"].first["command"][%r{bin/agent-check hook \S+}]
+        signature = entry["hooks"].first["command"][%r{bin/agent-check hook [\w-]+}]
         groups.any? do |group|
           group.is_a?(Hash) && Array(group["hooks"]).any? { |hook| hook.is_a?(Hash) && hook["command"].to_s.include?(signature) }
         end

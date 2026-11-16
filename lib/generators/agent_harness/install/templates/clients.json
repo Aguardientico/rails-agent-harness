@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "skills": [
+    ".claude/skills/rails-review/SKILL.md",
+    ".agents/skills/rails-review/SKILL.md",
+    ".github/skills/rails-review/SKILL.md",
+    ".cursor/skills/rails-review/SKILL.md",
+    ".gemini/skills/rails-review/SKILL.md",
+    ".cline/skills/rails-review/SKILL.md",
+    ".junie/skills/rails-review/SKILL.md"
+  ],
+  "instructions": [
+    ".github/copilot-instructions.md",
+    "GEMINI.md",
+    ".clinerules/rails-agent-harness.md",
+    ".roo/rules/rails-agent-harness.md",
+    ".aiassistant/rules/rails-agent-harness.md"
+  ],
+  "clients": {
+    "codex": {
+      "path": ".codex/hooks.json",
+      "config": {
+        "hooks": {
+          "PreToolUse": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "\"$(git rev-parse --show-toplevel)/bin/agent-check\" client-hook codex pre",
+                  "timeout": 60
+                }
+              ],
+              "matcher": "^(apply_patch|Edit|Write)$"
+            }
+          ],
+          "PostToolUse": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "\"$(git rev-parse --show-toplevel)/bin/agent-check\" client-hook codex post",
+                  "timeout": 60
+                }
+              ],
+              "matcher": "^(apply_patch|Edit|Write)$"
+            }
+          ],
+          "Stop": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "\"$(git rev-parse --show-toplevel)/bin/agent-check\" client-hook codex stop",
+                  "timeout": 300
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "copilot": {
+      "path": ".github/hooks/rails-agent-harness.json",
+      "config": {
+        "hooks": {
+          "preToolUse": [
+            {
+              "type": "command",
+              "bash": "./bin/agent-check client-hook copilot pre",
+              "timeoutSec": 60
+            }
+          ],
+          "postToolUse": [
+            {
+              "type": "command",
+              "bash": "./bin/agent-check client-hook copilot post",
+              "timeoutSec": 60
+            }
+          ],
+          "agentStop": [
+            {
+              "type": "command",
+              "bash": "./bin/agent-check client-hook copilot stop",
+              "timeoutSec": 300
+            }
+          ]
+        },
+        "version": 1
+      }
+    },
+    "cursor": {
+      "path": ".cursor/hooks.json",
+      "config": {
+        "hooks": {
+          "preToolUse": [
+            {
+              "command": "./bin/agent-check client-hook cursor pre",
+              "timeout": 60,
+              "matcher": "^(Write|Delete)$"
+            }
+          ],
+          "afterFileEdit": [
+            {
+              "command": "./bin/agent-check client-hook cursor post",
+              "timeout": 60
+            }
+          ],
+          "stop": [
+            {
+              "command": "./bin/agent-check client-hook cursor stop",
+              "timeout": 300
+            }
+          ]
+        },
+        "version": 1
+      }
+    },
+    "gemini": {
+      "path": ".gemini/settings.json",
+      "config": {
+        "hooks": {
+          "BeforeTool": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "\"${GEMINI_PROJECT_DIR}/bin/agent-check\" client-hook gemini pre",
+                  "timeout": 60000
+                }
+              ],
+              "matcher": "^(write_file|replace)$"
+            }
+          ],
+          "AfterTool": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "\"${GEMINI_PROJECT_DIR}/bin/agent-check\" client-hook gemini post",
+                  "timeout": 60000
+                }
+              ],
+              "matcher": "^(write_file|replace)$"
+            }
+          ],
+          "AfterAgent": [
+            {
+              "hooks": [
+                {
+                  "type": "command",
+                  "command": "\"${GEMINI_PROJECT_DIR}/bin/agent-check\" client-hook gemini stop",
+                  "timeout": 300000
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "owned_files": {
+    ".aider.agent-harness.yml": "read: [AGENTS.md]\nauto-test: true\nauto-lint: false\ntest-cmd: bin/agent-check\n"
+  },
+  "claude_hooks": {
+    "PreToolUse": {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook pre-tool-use ; fi",
+          "timeout": 10
+        }
+      ],
+      "matcher": "Edit|Write"
+    },
+    "PostToolUse": {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook post-tool-use ; fi",
+          "timeout": 60
+        }
+      ],
+      "matcher": "Edit|Write"
+    },
+    "Stop": {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "if [ -n \"${CLAUDE_PROJECT_DIR:-}\" ]; then \"${CLAUDE_PROJECT_DIR}\"/bin/agent-check hook stop ; fi",
+          "timeout": 300
+        }
+      ]
+    }
+  },
+  "optional_instructions": [
+    ".junie/AGENTS.md"
+  ]
+}

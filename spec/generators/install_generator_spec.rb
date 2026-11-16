@@ -70,7 +70,7 @@ RSpec.describe AgentHarness::Generators::InstallGenerator do
       output = run_generator
 
       expect(output).to include("Test framework: rspec", "Database:       unknown", "Schema format:  ruby")
-      expect(output).to include("Next steps:", "Commit AGENTS.md, config/agent_harness.yml, bin/agent-check, .gitignore, .claude/settings.json, .claude/skills/rails-review/SKILL.md.")
+      expect(output).to include("Next steps:", "Commit AGENTS.md, config/agent_harness.yml, bin/agent-check, .gitignore, .claude/settings.json, .claude/skills/rails-review/SKILL.md,")
     end
   end
 

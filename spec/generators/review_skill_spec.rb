@@ -137,10 +137,9 @@ RSpec.describe AgentHarness::Generators::InstallGenerator, "rails-review skill" 
   it "keeps a changed SKILL.md unless --force, without prompting" do
     write(".claude/skills/rails-review/SKILL.md", "my edits\n")
 
-    output = run_generator
+    expect { run_generator }.to raise_error(SystemExit)
 
     expect(skill).to eq("my edits\n")
-    expect(output).to include("exists  .claude/skills/rails-review/SKILL.md (differs; kept, use --force to overwrite)")
 
     run_generator(["--force"])
     expect(skill).to start_with("---\nname: rails-review\n")

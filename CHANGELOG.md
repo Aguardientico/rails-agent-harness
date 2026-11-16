@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Install portable rails-review skills and native hooks for Codex CLI, Copilot
+  harness (VS Code and coding agent), Cursor Agent and Gemini CLI alongside Claude.
+- Add Cline, Roo, Amp and JetBrains instruction/skill adapters and an opt-in Aider
+  auto-test configuration, a client manifest and installation digest verification.
+
 ### Added
 
 - `bin/rails g agent_harness:install` adds `/.claude/settings.local.json` to `.gitignore`
@@ -15,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `**/.claude/settings.local.json`).
 
 ### Fixed
+
+- Resolve Codex hook commands from the git root and patch paths from the session
+  directory; use Gemini's project root for its hook commands. Emit explicit Cursor
+  pre-tool and Codex Stop allow JSON, and preserve Gemini tool results when adding
+  lint feedback. Filter file-tool hooks, guard Cursor schema deletion and preserve
+  unchanged client settings on reinstall.
 
 - Hooks and `bin/agent-check` no longer crash under a non-UTF-8 locale (`LC_ALL=C`) on
   non-ASCII hook input, file names, project paths, file contents or tool output: these are read

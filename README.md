@@ -1,6 +1,6 @@
 # rails_agent_harness
 
-Make AI coding agents (Claude Code, Codex, Cursor) safe and productive in Rails apps.
+Make AI coding agents safe and productive in Rails apps: Claude Code, Codex CLI, GitHub Copilot, Cursor and Gemini CLI.
 
 [![CI](https://github.com/Aguardientico/rails-agent-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/Aguardientico/rails-agent-harness/actions/workflows/ci.yml)
 <!-- Gem version badge, once published:
@@ -15,11 +15,11 @@ Coding agents are fast, but in a Rails app they make the same mistakes over and 
 - they add **N+1 queries**, **unscoped `params`**, string-interpolated SQL and side effects in callbacks;
 - they declare a task "done" without running the linter, the security scanner or the tests.
 
-rails_agent_harness gives every agent the same guard rails:
+rails_agent_harness gives agents a shared verification workflow:
 
 - an **`AGENTS.md`** with commands and conventions for *your* app's stack;
 - **`bin/agent-check`**, one fast command that checks the change set: migrations and schema, RuboCop on changed files, Brakeman, and the tests mapped to the changed files;
-- **Claude Code hooks** that block hand-written migrations and schema edits before they happen, lint every edited file, and run the full check before Claude stops;
+- **Native hooks for Claude Code, Codex CLI, Copilot, Cursor and Gemini CLI** for file guards, post-edit lint and completion checks, with client-specific feedback;
 - a **`rails-review` skill** (and the same checklist in `AGENTS.md`) for reviewing changes for N+1 queries, missing indexes, strong parameters, callbacks, transactions and security.
 
 ## Before / after
@@ -87,9 +87,11 @@ Options:
 
 | Option | Effect |
 |---|---|
-| `--force` | Overwrite `config/agent_harness.yml` and `.claude/skills/rails-review/SKILL.md` |
+| `--force-client-files` | Replace skills and generated Aider config without resetting `config/agent_harness.yml` |
+| `--force` | Overwrite `config/agent_harness.yml`, generated skills and the Aider configuration |
+| `--skip-client-hooks` | Skip Codex, Copilot, Cursor and Gemini hooks |
 | `--skip-claude-hooks` | Don't add hooks to `.claude/settings.json` |
-| `--skip-skills` | Don't write `.claude/skills/` (the review section stays in `AGENTS.md`) |
+| `--skip-skills` | Don't write any client skills (review instructions remain) |
 
 ## How it works with each agent
 
@@ -103,9 +105,74 @@ Options:
 
 Ask Claude to "review my changes" or run `/rails-review` to use the review skill.
 
-**Codex and Cursor** read `AGENTS.md`, which tells them to run `bin/agent-check` before saying a task is done and to fix everything it reports, and contains the same review checklist. The generator only installs hooks for Claude Code; for Codex and Cursor, the migrations check in `bin/agent-check` catches hand-written migrations after the fact.
+All primary clients receive a native skill, instructions and hooks, from one
+[client manifest](lib/generators/agent_harness/install/templates/clients.json).
+The only skill template is `templates/skills/rails-review/SKILL.md.tt`; identical
+copies are installed, with no client configuration in their frontmatter.
+
+| Client | Instructions / skill directory | Installed hooks and strength |
+|---|---|---|
+| Claude Code | `AGENTS.md` (see `CLAUDE.md` caveat above); `.claude/skills` | Pre-edit guard, post-edit lint feedback, blocking Stop |
+| Codex CLI | `AGENTS.md`; `.agents/skills` | `.codex/hooks.json`: PreToolUse inspects every `apply_patch` header including moves; PostToolUse lint feedback; blocking Stop |
+| Copilot VS Code **Copilot harness**, CLI and GitHub coding agent | `.github/copilot-instructions.md`; `.github/skills` | `.github/hooks/rails-agent-harness.json`: native `preToolUse`, `postToolUse`, `agentStop`; JSON deny, lint context and blocking completion |
+| Cursor Agent | `AGENTS.md`; `.cursor/skills` | `.cursor/hooks.json`: `preToolUse` guard, `afterFileEdit` lint (diagnostic only), `stop` full check with one follow-up |
+| Gemini CLI | `GEMINI.md`; `.gemini/skills` | `.gemini/settings.json`: `BeforeTool` guard for `write_file`/`replace`, `AfterTool` lint, `AfterAgent` rejects completion once |
+| Cline | `.clinerules/rails-agent-harness.md`; `.cline/skills` | Skill + rules; no Cline hook adapter installed |
+| Roo Code | `.roo/rules/rails-agent-harness.md`; shared `.agents/skills` | Skill + rules; no hook adapter installed |
+| Amp | `AGENTS.md`; shared `.agents/skills` | Skill + instructions; no hook adapter installed |
+| Windsurf / Devin Local (current Devin Desktop) | `AGENTS.md`; shared `.agents/skills` | Skill + rules; native Devin hooks exist but no adapter is installed |
+| Junie CLI / IDE | `AGENTS.md` (updates `.junie/AGENTS.md` only if it already exists); `.junie/skills` | Skill + guidelines; no hook adapter installed |
+| JetBrains AI Assistant | `.aiassistant/rules/rails-agent-harness.md` | Rules only; select **Always** in the IDE and check the rule appears in response attachments |
+| Aider | `.aider.agent-harness.yml`: `read: [AGENTS.md]`, `auto-test: true`, `test-cmd: bin/agent-check` | Start with `aider --config .aider.agent-harness.yml`; automatic check/fix after edits; no pre-edit guard or SKILL discovery claimed |
+
+These are different guarantees. Pre-edit guards cover recognized file tools, not
+shell writes, arbitrary MCP tools or every editor route. The shared migrations
+check catches suspicious changes afterwards; it cannot prove a migration was
+generated. Stop retry protection permits completion on the retry to avoid loops;
+CI running `bin/agent-check` is the final gate. Cursor post-edit output is only a
+diagnostic; its Stop hook supplies actionable feedback. Older Cursor releases
+without `preToolUse` have only post-edit detection and Stop feedback.
+
+**Activation:** use current clients with these documented APIs, start them at the
+Rails app root, review/trust the workspace and approve hooks where required.
+Codex requires hook trust separately; this generator never approves its hooks.
+Copilot also imports Claude settings; generated Claude commands run only when
+`CLAUDE_PROJECT_DIR` is set, preventing duplicate or invalid cross-client commands.
+For VS Code select the **Copilot harness**; legacy Local-agent hook format is not
+installed. Remote/cloud environments need their own installed dependencies and
+committed project files. Copilot coding agent must have the app's Ruby, bundle
+(including this development gem), test database and linters available; configure
+[Copilot setup steps](https://docs.github.com/en/copilot/how-tos/copilot-coding-agent/customizing-the-development-environment-for-copilot-coding-agent)
+for that app. The generator does not guess database credentials or change CI.
+
+**Installation verification:** the installer checks its output before succeeding.
+Run `bin/agent-check verify-install` after installing/upgrading and in CI. It
+compares SHA-256 digests of fully managed files and marked instruction blocks,
+and checks that managed hook commands remain present. User text outside the blocks,
+application check configuration and unrelated client settings can change freely.
+It stores no copies of user settings. Divergent existing skills are preserved and cause verification
+to fail until reconciled (`--force-client-files` replaces them without resetting check configuration). Invalid JSON/structures are
+preserved and installation fails; JSONC comments need conversion to JSON first.
+This check validates installed artifacts, not a client's trust settings or version.
+The test suite exercises documented payloads and responses; packaged-gem smoke
+runs verification in a fresh Rails app. Live authenticated client sessions are not
+part of CI. See [official capability sources](docs/agent-clients.md) and
+[README en español](README.es.md).
+
+Additional generated files include `.agents/skills/rails-review/SKILL.md`,
+`.github/skills/rails-review/SKILL.md`, `.cursor/skills/rails-review/SKILL.md`,
+`.gemini/skills/rails-review/SKILL.md`, `.cline/skills/rails-review/SKILL.md`, the
+hook/rule files in the table, `.aider.agent-harness.yml` and
+`config/agent_harness_clients.json`. Commit the generated artifacts. No MCP server
+is needed or installed: MCP tool availability does not enforce verification.
 
 ## `bin/agent-check`
+
+`bin/agent-check verify-install` validates installed client artifacts.
+`bin/agent-check client-hook CLIENT PHASE` is the protocol adapter used by client
+configuration (`CLIENT`: codex/copilot/cursor/gemini; `PHASE`: pre/post/stop).
+Keep using `bin/agent-check` for manual and CI verification; the original Claude
+`hook` commands remain compatible.
 
 ```
 Usage: bin/agent-check [options]

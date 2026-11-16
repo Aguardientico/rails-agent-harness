@@ -63,7 +63,7 @@ RSpec.describe "migration/schema guard" do
       expect(stderr).to start_with("Do not hand-write migration files.")
       expect(stdout).to be_empty
       settings = JSON.parse(File.read(File.join(app_root, ".claude/settings.json")))
-      expect(settings.dig("hooks", "PreToolUse", 0, "hooks", 0, "command")).to end_with("bin/agent-check hook pre-tool-use")
+      expect(settings.dig("hooks", "PreToolUse", 0, "hooks", 0, "command")).to include("bin/agent-check hook pre-tool-use")
     end
   end
 end

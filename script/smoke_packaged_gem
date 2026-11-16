@@ -52,6 +52,8 @@ class SmokePackagedGem
     run "commit the harness", [*GIT, "add", "-A"], chdir: app
     run "commit the harness", [*GIT, "commit", "-q", "-m", "Install rails_agent_harness"], chdir: app
 
+    verify_client_hooks(app, gem_path)
+    run "bin/agent-check verify-install", %w[bin/agent-check verify-install], chdir: app, expect: 0
     run "bin/agent-check --version", %w[bin/agent-check --version], chdir: app, expect: 0
     run "bin/agent-check (no changes)", %w[bin/agent-check], chdir: app, expect: 0
     FileUtils.mkdir_p(File.join(app, "db/migrate"))
@@ -65,6 +67,37 @@ class SmokePackagedGem
     run "bin/agent-check (hand-written migration)", %w[bin/agent-check --only migrations], chdir: app, expect: 1
     payload = JSON.generate("tool_name" => "Write", "tool_input" => {"file_path" => File.join(app, "db/migrate/20991231000001_x.rb")})
     run "bin/agent-check hook pre-tool-use", %w[bin/agent-check hook pre-tool-use], chdir: app, stdin: payload, expect: 2
+  end
+
+  def verify_client_hooks(app, gem_path)
+    manifest = JSON.parse(File.read(File.join(gem_path, "lib/generators/agent_harness/install/templates/clients.json")))
+    path = File.join(app, "db/migrate/20991231000009_direct_write.rb")
+    subdir = File.join(app, "app/models")
+    FileUtils.mkdir_p(subdir)
+    payloads = {
+      "codex" => {"tool_name" => "apply_patch", "tool_input" => {"command" => "*** Begin Patch\n*** Add File: #{path}\n+x\n*** End Patch"}},
+      "copilot" => {"toolName" => "create", "toolArgs" => JSON.generate("path" => path)},
+      "cursor" => {"tool_name" => "Write", "tool_input" => {"path" => path}},
+      "gemini" => {"tool_name" => "write_file", "tool_input" => {"file_path" => path}}
+    }
+    manifest.fetch("clients").each do |client, entry|
+      config = JSON.parse(File.read(File.join(app, entry.fetch("path"))))
+      group = config.fetch("hooks").values.first.first
+      hook = group.fetch("hooks", [group]).first
+      command = hook["command"] || hook.fetch("bash")
+      cwd = %w[codex gemini].include?(client) ? subdir : app
+      payload = payloads.fetch(client).merge("cwd" => cwd)
+      output = run "#{client} pre-edit hook", ["sh", "-c", command], chdir: cwd,
+        stdin: JSON.generate(payload), env: {"GEMINI_PROJECT_DIR" => app}
+      decision = JSON.parse(output)
+      denied = case client
+      when "codex" then decision.dig("hookSpecificOutput", "permissionDecision") == "deny"
+      when "copilot" then decision["permissionDecision"] == "deny"
+      when "cursor" then decision["permission"] == "deny"
+      when "gemini" then decision["decision"] == "deny"
+      end
+      fail!("#{client} did not deny the migration write") unless denied
+    end
   end
 
   def rails_new(app)
@@ -97,9 +130,9 @@ class SmokePackagedGem
     @rails_version = nil
   end
 
-  def run(label, argv, chdir: Dir.pwd, stdin: nil, expect: 0)
+  def run(label, argv, chdir: Dir.pwd, stdin: nil, expect: 0, env: {})
     puts "$ #{argv.shelljoin}"
-    output, status = Open3.capture2e(*argv, chdir: chdir, stdin_data: stdin.to_s)
+    output, status = Open3.capture2e(env, *argv, chdir: chdir, stdin_data: stdin.to_s)
     return output if status.exitstatus == expect
 
     fail!("#{label}: exit status #{status.exitstatus}, expected #{expect}\n#{output.lines.last(30).join}")

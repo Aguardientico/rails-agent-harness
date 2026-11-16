@@ -8,7 +8,22 @@ Description:
       bin/agent-check           the checker
       .claude/settings.json     Claude Code hooks (merged into an existing file)
       .claude/skills/rails-review/SKILL.md
-                                the rails-review skill
+                                the rails-review skill (identical copies also in
+                                .agents, .github, .cursor, .gemini and .cline skills)
+      .codex/hooks.json         Codex CLI hooks
+      .github/hooks/rails-agent-harness.json
+                                Copilot harness hooks (VS Code / coding agent)
+      .cursor/hooks.json        Cursor Agent hooks
+      .gemini/settings.json     Gemini CLI hooks
+      GEMINI.md                 Gemini instructions
+      .github/copilot-instructions.md
+                                Copilot instructions
+      .clinerules/rails-agent-harness.md, .roo/rules/rails-agent-harness.md,
+      .aiassistant/rules/rails-agent-harness.md
+                                additional client rules
+      .aider.agent-harness.yml   opt-in: aider --config .aider.agent-harness.yml
+      config/agent_harness_clients.json
+                                installation digests; bin/agent-check verify-install
 
     CLAUDE.md, .claude/CLAUDE.md and CLAUDE.local.md are never created or
     edited. Claude Code 2.1.277+ (2.1.281+ on Bedrock or with telemetry

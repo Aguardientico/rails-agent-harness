@@ -9,6 +9,8 @@ require "rails_agent_harness/changed_files"
 require "rails_agent_harness/guards/migration_guard"
 require "rails_agent_harness/paths"
 require "rails_agent_harness/runner"
+require "rails_agent_harness/client_hook"
+require "rails_agent_harness/installation"
 
 module RailsAgentHarness
   # `bin/agent-check`. Never loads Rails or the host app.
@@ -36,6 +38,14 @@ module RailsAgentHarness
 
     def run(argv)
       return hook(argv[1]) if argv.first == "hook"
+      if argv.first == "client-hook"
+        return ClientHook.new(root: root, stdout: @stdout, stderr: @stderr).call(argv[1], argv[2], @stdin.read)
+      end
+      if argv == ["verify-install"]
+        problems = Installation.verify(root)
+        @stdout.puts(problems.empty? ? "agent-check: installation verified" : problems.join("\n"))
+        return problems.empty? ? 0 : 1
+      end
 
       check(argv)
     rescue => e
@@ -78,7 +88,7 @@ module RailsAgentHarness
     def parse_options(argv)
       options = {}
       parser = OptionParser.new do |opts|
-        opts.banner = "Usage: bin/agent-check [options]\n       bin/agent-check hook #{HOOKS.keys.join("|")}"
+        opts.banner = "Usage: bin/agent-check [options]\n       bin/agent-check hook #{HOOKS.keys.join("|")}\n       bin/agent-check client-hook CLIENT pre|post|stop\n       bin/agent-check verify-install"
         opts.separator ""
         opts.separator "Runs fast checks (#{Checks.registry.map(&:check_name).join(", ")}) on the files changed since the merge base."
         opts.separator "Exit status: 0 when nothing failed, 1 otherwise."
